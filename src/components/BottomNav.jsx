@@ -4,16 +4,16 @@ import { useAuth } from '../context/AuthContext';
 import { 
   LayoutDashboard, 
   CalendarCheck2, 
-  AlertCircle, 
-  History, 
-  Users 
+  Users, 
+  History,
+  Settings
 } from 'lucide-react';
 
 export default function BottomNav() {
   const { isAdmin } = useAuth();
 
   return (
-    <nav className="bottom-nav mobile-only glass">
+    <nav className="bottom-nav mobile-only">
       <NavLink to="/" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`} end>
         <LayoutDashboard size={20} />
         <span>Home</span>
@@ -32,6 +32,10 @@ export default function BottomNav() {
           <NavLink to="/history" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
             <History size={20} />
             <span>Stats</span>
+          </NavLink>
+          <NavLink to="/settings" className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
+            <Settings size={20} />
+            <span>Settings</span>
           </NavLink>
         </>
       )}

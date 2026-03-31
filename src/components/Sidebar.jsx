@@ -60,8 +60,13 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div className="mt-auto pt-4 border-t border-gray-100/50">
-        <button onClick={handleLogout} className="sidebar-item w-full text-danger hover:bg-danger/5" style={{ border: 'none', background: 'none', cursor: 'pointer' }}>
+      <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+        <button 
+          onClick={handleLogout} 
+          className="sidebar-item w-full text-danger"
+          style={{ border: 'none', background: 'none', cursor: 'pointer', width: '100%' }}
+          id="desktop-sign-out-btn"
+        >
           <LogOut size={20} />
           <span>Sign Out</span>
         </button>

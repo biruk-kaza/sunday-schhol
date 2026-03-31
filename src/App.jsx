@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
+import MobileHeader from './components/MobileHeader';
 import TodayView from './pages/TodayView';
 import DashboardView from './pages/DashboardView';
 import ActionRequiredView from './pages/ActionRequiredView';
@@ -18,7 +19,7 @@ function ProtectedRoute({ children, adminOnly = false }) {
   
   if (loading) return (
     <div className="page-container flex items-center justify-center min-h-screen">
-      <div className="text-muted animate-pulse">Authenticating Secure Portal...</div>
+      <div className="text-muted animate-pulse" style={{ textAlign: 'center' }}>Authenticating Secure Portal...</div>
     </div>
   );
 
@@ -53,6 +54,7 @@ function Layout() {
   return (
     <div className="app-layout">
       {session && <Sidebar />}
+      {session && <MobileHeader />}
       <main className="main-content">
         <Routes>
           <Route path="/" element={<ProtectedRoute><DashboardView /></ProtectedRoute>} />
