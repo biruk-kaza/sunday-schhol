@@ -4,7 +4,7 @@ import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 export default function LoginView() {
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -12,7 +12,7 @@ export default function LoginView() {
   const navigate = useNavigate();
 
   // If already logged in, redirect to dashboard
-  if (session) {
+  if (!authLoading && session) {
     return <Navigate to="/" replace />;
   }
 
@@ -28,14 +28,21 @@ export default function LoginView() {
       });
 
       if (error) {
-        throw error;
+        setErrorMsg(error.message);
+        setIsLoading(false);
+        return;
       }
 
-      // Use React Router navigation (not window.location) to avoid full page reload
-      navigate('/', { replace: true });
+      if (data?.session) {
+        // Success — navigate to dashboard
+        navigate('/', { replace: true });
+      } else {
+        setErrorMsg('Login succeeded but no session was returned. Please try again.');
+        setIsLoading(false);
+      }
     } catch (error) {
-      setErrorMsg(error.message);
-    } finally {
+      console.error('Login error:', error);
+      setErrorMsg(error?.message || 'Network error. Please check your internet connection.');
       setIsLoading(false);
     }
   }
@@ -51,7 +58,7 @@ export default function LoginView() {
         <p className="text-muted text-center mb-6">Enter your credentials to access the portal.</p>
 
         {errorMsg && (
-          <div className="text-danger bg-danger text-center mb-6" style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', color: 'white', fontWeight: '500' }}>
+          <div className="text-center mb-6" style={{ padding: '0.75rem', borderRadius: 'var(--radius-sm)', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', fontWeight: '600', fontSize: '0.85rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
             {errorMsg}
           </div>
         )}
