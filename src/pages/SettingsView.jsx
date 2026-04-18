@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { Download, LogOut, FileText, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useDialog } from '../context/DialogContext';
 
 export default function SettingsView() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { confirm, alert: showAlert } = useDialog();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -37,18 +39,19 @@ export default function SettingsView() {
       a.click();
       document.body.removeChild(a);
     } catch (err) {
-      alert('Export failed: ' + err.message);
+      await showAlert('Export failed: ' + err.message, { title: 'Export Error', variant: 'danger' });
     } finally {
       setLoading(false);
     }
   };
 
   const handlePromotion = async () => {
-    const confirm = window.confirm(
-      "YEARLY PROMOTION:\n\nThis will increment the grade for ALL active students (e.g. Grade 7 -> Grade 8).\nGrade 12 students will be marked as 'Graduated' and deactivated.\n\nAre you sure you want to proceed?"
+    const ok = await confirm(
+      "This will increment the grade for ALL active students (e.g. Grade 7 → Grade 8). Grade 12 students will be marked as 'Graduated' and deactivated.",
+      { title: 'Yearly Promotion', confirmText: 'Promote All', variant: 'warning' }
     );
 
-    if (!confirm) return;
+    if (!ok) return;
 
     setLoading(true);
     try {
@@ -84,9 +87,9 @@ export default function SettingsView() {
 
       if (updateError) throw updateError;
 
-      alert('Promotion successful! All students have been moved to their next grade.');
+      await showAlert('All students have been moved to their next grade.', { title: 'Promotion Successful', variant: 'success' });
     } catch (err) {
-      alert('Promotion failed: ' + err.message);
+      await showAlert('Promotion failed: ' + err.message, { title: 'Error', variant: 'danger' });
     } finally {
       setLoading(false);
     }
@@ -130,4 +133,3 @@ export default function SettingsView() {
     </div>
   );
 }
-

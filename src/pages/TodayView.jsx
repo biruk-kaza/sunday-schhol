@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { CheckCircle2, XCircle, Search, UserCheck, CloudOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { format, isSaturday, isSunday, previousSaturday, previousSunday, nextSunday } from 'date-fns';
 import { saveOfflineAttendance, cacheStudents, getCachedStudents } from '../lib/offlineDb';
-import { syncOfflineRecords } from '../lib/syncEngine';
 
 export default function TodayView() {
   const { isAdmin, assignedGrade } = useAuth();
+  const { confirm, alert: showAlert } = useDialog();
   const [sessionType, setSessionType] = useState('Sunday');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrade, setSelectedGrade] = useState(isAdmin ? 'All' : (assignedGrade || 'Grade 7'));
@@ -23,7 +24,7 @@ export default function TodayView() {
     }
   }, [isAdmin, assignedGrade]);
 
-  const getSessionDate = (targetDay) => {
+  const getSessionDate = useCallback((targetDay) => {
     const today = new Date();
     if (targetDay === 'Saturday') {
       if (isSaturday(today)) return today;
@@ -34,7 +35,7 @@ export default function TodayView() {
       if (isSaturday(today)) return nextSunday(today);
       return previousSunday(today);
     }
-  };
+  }, []);
 
   const activeDateObj = getSessionDate(sessionType);
   const activeDateStr = format(activeDateObj, 'yyyy-MM-dd');
@@ -43,6 +44,16 @@ export default function TodayView() {
   const todayOnlyDateStr = format(new Date(), 'yyyy-MM-dd');
   const isPastSession = activeDateStr < todayOnlyDateStr;
   const isFutureSession = activeDateStr > todayOnlyDateStr;
+
+  // Listen for sync completion to reload data
+  useEffect(() => {
+    const handleSynced = () => {
+      console.log('[TodayView] Sync completed, reloading data...');
+      loadSessionData();
+    };
+    window.addEventListener('attendance-synced', handleSynced);
+    return () => window.removeEventListener('attendance-synced', handleSynced);
+  }, [sessionType]);
 
   useEffect(() => {
     loadSessionData();
@@ -54,7 +65,6 @@ export default function TodayView() {
       setIsOfflineMode(false);
 
       if (!navigator.onLine) {
-        // OFFLINE: Load from cache
         const cachedData = await getCachedStudents();
         if (cachedData.length > 0) {
           setStudents(cachedData);
@@ -66,7 +76,7 @@ export default function TodayView() {
         return;
       }
 
-      // ONLINE: Normal Supabase fetch
+      // ONLINE: Fetch students
       const { data: studentsData, error: studentErr } = await supabase
         .from('students')
         .select('*')
@@ -74,15 +84,22 @@ export default function TodayView() {
         .eq('enrollment_status', 'Active')
         .order('first_name', { ascending: true });
         
-      if (studentErr) throw studentErr;
+      if (studentErr) {
+        console.error('Student fetch error:', studentErr);
+        throw studentErr;
+      }
 
+      // ONLINE: Fetch attendance for this session
       const { data: attData, error: attErr } = await supabase
         .from('attendance')
         .select('*')
         .eq('session_date', activeDateStr)
         .eq('session_type', sessionType);
 
-      if (attErr) throw attErr;
+      if (attErr) {
+        console.error('Attendance fetch error:', attErr);
+        throw attErr;
+      }
 
       setStudents(studentsData || []);
 
@@ -93,13 +110,15 @@ export default function TodayView() {
         );
       }
 
+      // Build the attendance map
       const logMap = {};
       (attData || []).forEach(record => {
         logMap[record.student_id] = record.is_present;
       });
       setAttendanceLog(logMap);
+
     } catch (err) {
-      console.error('Error loading session data:', err.message);
+      console.error('Error loading session data:', err.message || err);
       // Fallback to cache on network error
       try {
         const cachedData = await getCachedStudents();
@@ -117,6 +136,7 @@ export default function TodayView() {
   }
 
   async function handleMarkAttendance(studentId, isPresent) {
+    // Optimistic UI update
     setAttendanceLog(prev => ({ ...prev, [studentId]: isPresent }));
 
     const record = {
@@ -127,7 +147,6 @@ export default function TodayView() {
     };
 
     if (!navigator.onLine) {
-      // OFFLINE: Save to IndexedDB queue
       try {
         await saveOfflineAttendance(record);
       } catch (err) {
@@ -136,25 +155,35 @@ export default function TodayView() {
       return;
     }
 
-    // ONLINE: Normal Supabase upsert
-    try {
-      await supabase.from('attendance').upsert(record, { 
-        onConflict: 'student_id, session_date, session_type' 
+    // ONLINE: Upsert to Supabase with PROPER error checking
+    const { error } = await supabase
+      .from('attendance')
+      .upsert(record, { onConflict: 'student_id, session_date, session_type' });
+
+    if (error) {
+      console.error('Supabase upsert failed:', error);
+      // Revert the optimistic update
+      setAttendanceLog(prev => {
+        const next = { ...prev };
+        delete next[studentId];
+        return next;
       });
-    } catch (error) {
-      console.error('Marking attendance failed:', error.message);
-      // Save offline as fallback
+      // Try saving offline as fallback
       try {
         await saveOfflineAttendance(record);
+        setAttendanceLog(prev => ({ ...prev, [studentId]: isPresent }));
       } catch (offlineErr) {
         console.error('Offline fallback also failed:', offlineErr);
       }
-      loadSessionData();
     }
   }
 
   async function handleMarkAllPresent() {
-    if (!window.confirm(`Mark all ${filteredStudents.length} students in ${selectedGrade} as present?`)) return;
+    const ok = await confirm(
+      `Mark all ${filteredStudents.length} students in ${selectedGrade} as present?`,
+      { title: 'Bulk Attendance', confirmText: 'Mark All Present', variant: 'primary' }
+    );
+    if (!ok) return;
     
     const updates = filteredStudents.map(s => ({
       student_id: s.id,
@@ -164,7 +193,6 @@ export default function TodayView() {
     }));
 
     if (!navigator.onLine) {
-      // OFFLINE: Queue all records
       try {
         for (const record of updates) {
           await saveOfflineAttendance(record);
@@ -173,22 +201,24 @@ export default function TodayView() {
         filteredStudents.forEach(s => nextLog[s.id] = true);
         setAttendanceLog(nextLog);
       } catch (err) {
-        alert('Failed to save offline: ' + err.message);
+        await showAlert('Failed to save offline: ' + err.message, { title: 'Error', variant: 'danger' });
       }
       return;
     }
 
-    // ONLINE: Normal bulk upsert
-    try {
-      const { error } = await supabase.from('attendance').upsert(updates, { onConflict: 'student_id, session_date, session_type' });
-      if (error) throw error;
-      
-      const nextLog = { ...attendanceLog };
-      filteredStudents.forEach(s => nextLog[s.id] = true);
-      setAttendanceLog(nextLog);
-    } catch (err) {
-      alert('Bulk mark failed: ' + err.message);
+    // ONLINE with proper error checking
+    const { error } = await supabase
+      .from('attendance')
+      .upsert(updates, { onConflict: 'student_id, session_date, session_type' });
+    
+    if (error) {
+      await showAlert('Bulk mark failed: ' + error.message, { title: 'Error', variant: 'danger' });
+      return;
     }
+    
+    const nextLog = { ...attendanceLog };
+    filteredStudents.forEach(s => nextLog[s.id] = true);
+    setAttendanceLog(nextLog);
   }
 
   const filteredStudents = students.filter(s => {

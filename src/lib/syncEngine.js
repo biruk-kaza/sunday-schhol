@@ -11,7 +11,6 @@ let listeners = [];
 
 /**
  * Subscribe to sync state changes
- * Callback receives: { syncing: boolean, pendingCount: number, lastResult: 'success'|'error'|null }
  */
 export function onSyncStateChange(callback) {
   listeners.push(callback);
@@ -42,19 +41,33 @@ export async function syncOfflineRecords() {
     // Prepare records for upsert (strip local-only fields)
     const records = queue.map(({ localId, queued_at, ...rest }) => rest);
 
-    const { error } = await supabase
-      .from('attendance')
-      .upsert(records, { onConflict: 'student_id, session_date, session_type' });
+    // Deduplicate: keep only the latest record per student+date+type
+    const deduped = {};
+    records.forEach(r => {
+      const key = `${r.student_id}_${r.session_date}_${r.session_type}`;
+      deduped[key] = r; // later entries overwrite earlier ones
+    });
+    const uniqueRecords = Object.values(deduped);
 
-    if (error) throw error;
+    const { data, error } = await supabase
+      .from('attendance')
+      .upsert(uniqueRecords, { onConflict: 'student_id, session_date, session_type' });
+
+    if (error) {
+      console.error('[SyncEngine] Supabase upsert error:', error);
+      throw error;
+    }
 
     // All synced — clear the queue
     await clearOfflineQueue();
     
     notifyListeners({ syncing: false, pendingCount: 0, lastResult: 'success' });
-    console.log(`[SyncEngine] Successfully synced ${records.length} records`);
+    console.log(`[SyncEngine] Successfully synced ${uniqueRecords.length} records`);
+
+    // Dispatch event so pages can reload their data
+    window.dispatchEvent(new CustomEvent('attendance-synced'));
   } catch (err) {
-    console.error('[SyncEngine] Sync failed:', err.message);
+    console.error('[SyncEngine] Sync failed:', err.message || err);
     const remaining = await getQueueCount();
     notifyListeners({ syncing: false, pendingCount: remaining, lastResult: 'error' });
   } finally {
@@ -64,7 +77,6 @@ export async function syncOfflineRecords() {
 
 /**
  * Initialize the sync engine — call once at app boot
- * Listens for online events and attempts sync automatically
  */
 export function initSyncEngine() {
   // Try syncing immediately on boot if online
@@ -75,7 +87,7 @@ export function initSyncEngine() {
   // Sync when coming back online
   window.addEventListener('online', () => {
     console.log('[SyncEngine] Back online — starting sync...');
-    setTimeout(syncOfflineRecords, 1000);
+    setTimeout(syncOfflineRecords, 1500);
   });
 
   // Notify listeners when going offline

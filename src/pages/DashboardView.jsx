@@ -38,6 +38,13 @@ export default function DashboardView() {
     fetchDashboardData();
   }, [isAdmin, assignedGrade]);
 
+  // Refresh stats when offline attendance syncs
+  useEffect(() => {
+    const handleSynced = () => fetchDashboardData();
+    window.addEventListener('attendance-synced', handleSynced);
+    return () => window.removeEventListener('attendance-synced', handleSynced);
+  }, []);
+
   async function fetchDashboardData() {
     try {
       setLoading(true);

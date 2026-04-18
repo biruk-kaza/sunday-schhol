@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserPlus, Upload, Link as LinkIcon, X, Trash2, UserCheck, Edit, Search, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useDialog } from '../context/DialogContext';
 
 export default function StudentsView() {
+  const { confirm, alert: showAlert } = useDialog();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -62,7 +64,7 @@ export default function StudentsView() {
       setShowAddModal(false);
       setNewStudent({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '' });
     } catch (error) {
-      alert('Error adding student: ' + error.message);
+      showAlert('Error adding student: ' + error.message, { title: 'Error', variant: 'danger' });
     }
   }
 
@@ -85,7 +87,7 @@ export default function StudentsView() {
       setShowEditModal(false);
       setEditingStudent(null);
     } catch (error) {
-      alert('Update failed: ' + error.message);
+      showAlert('Update failed: ' + error.message, { title: 'Error', variant: 'danger' });
     }
   }
 
@@ -99,12 +101,16 @@ export default function StudentsView() {
       if (error) throw error;
       setStudents(students.map(s => s.id === studentId ? { ...s, enrollment_status: 'Active' } : s));
     } catch (error) {
-      alert('Approval failed: ' + error.message);
+      showAlert('Approval failed: ' + error.message, { title: 'Error', variant: 'danger' });
     }
   }
 
   async function handleDelete(studentId) {
-    if (!window.confirm("Are you sure you want to remove this student? All their attendance records will remain but the student will be deactivated.")) return;
+    const ok = await confirm(
+      "Are you sure you want to remove this student? All their attendance records will remain but the student will be deactivated.",
+      { title: 'Remove Student', confirmText: 'Remove', variant: 'danger' }
+    );
+    if (!ok) return;
     
     try {
       // Soft delete for safety
@@ -116,7 +122,7 @@ export default function StudentsView() {
       if (error) throw error;
       setStudents(students.filter(s => s.id !== studentId));
     } catch (error) {
-      alert('Delete failed: ' + error.message);
+      showAlert('Delete failed: ' + error.message, { title: 'Error', variant: 'danger' });
     }
   }
 
@@ -165,10 +171,10 @@ export default function StudentsView() {
         const { error } = await supabase.from('students').insert(newRecords);
         if (error) throw error;
 
-        alert(`Successfully imported ${newRecords.length} students into the directory.`);
+        await showAlert(`Successfully imported ${newRecords.length} students into the directory.`, { title: 'Import Complete', variant: 'success' });
         fetchStudents();
       } catch (err) {
-        alert('Bulk Import failed: ' + err.message);
+        showAlert('Bulk Import failed: ' + err.message, { title: 'Import Error', variant: 'danger' });
       } finally {
         setIsUploading(false);
         if (fileInputRef.current) fileInputRef.current.value = '';
@@ -216,7 +222,7 @@ export default function StudentsView() {
             <p className="text-muted text-xs mb-4">Copy the link and send it to parents.</p>
             <button className="btn-outline w-full" onClick={() => {
               navigator.clipboard.writeText(window.location.origin + '/register');
-              alert('Link copied to clipboard!');
+              showAlert('Registration link copied to clipboard!', { title: 'Link Copied', variant: 'success' });
             }}>Copy Link</button>
           </div>
         </div>
