@@ -1,17 +1,19 @@
 import React, { useState } from 'react';
-import { Download, LogOut, FileText, Loader2 } from 'lucide-react';
+import { Download, LogOut, FileText, Loader2, Shield, User } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 
 export default function SettingsView() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { user, role, assignedGrade, assignedMode, isAdmin } = useAuth();
   const { confirm, alert: showAlert } = useDialog();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
   const exportData = async () => {
@@ -23,10 +25,10 @@ export default function SettingsView() {
 
       if (error) throw error;
 
-      const headers = ['First Name', 'Last Name', 'Grade', 'Phone', 'Status'];
+      const headers = ['First Name', 'Last Name', 'Grade', 'Program', 'Phone', 'Status'];
       const csvRows = [
         headers.join(','),
-        ...students.map(s => `${s.first_name},${s.last_name},${s.grade},${s.parent_phone},${s.enrollment_status}`)
+        ...students.map(s => `${s.first_name},${s.last_name},${s.grade},${s.program_type || 'weekend'},${s.parent_phone},${s.enrollment_status}`)
       ];
 
       const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
@@ -101,6 +103,33 @@ export default function SettingsView() {
         <h1 className="page-title">Settings</h1>
       </div>
       <div className="content">
+
+        {/* Current Role Info */}
+        <div className="card glass mb-4" style={{ borderLeft: '4px solid var(--primary)' }}>
+          <h3 className="section-title flex items-center gap-2 mb-4" style={{ color: 'var(--text-secondary)', fontWeight: 800 }}>
+            {isAdmin ? <Shield size={18} className="text-primary" /> : <User size={18} className="text-primary" />}
+            Your Access Profile
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div>
+              <p className="text-xs text-muted font-bold uppercase mb-1">Email</p>
+              <p className="text-sm font-bold m-0">{user?.email || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted font-bold uppercase mb-1">Role</p>
+              <p className="text-sm font-bold m-0" style={{ textTransform: 'capitalize' }}>{role}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted font-bold uppercase mb-1">Grade</p>
+              <p className="text-sm font-bold m-0">{assignedGrade || 'All Grades'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted font-bold uppercase mb-1">Program</p>
+              <p className="text-sm font-bold m-0" style={{ textTransform: 'capitalize' }}>{assignedMode}</p>
+            </div>
+          </div>
+        </div>
+
         <div className="settings-group card">
           <h3 className="section-title text-muted mb-4">Data Management</h3>
           
@@ -125,7 +154,7 @@ export default function SettingsView() {
           <button className="settings-row text-danger" onClick={handleSignOut}>
             <div className="flex items-center gap-3">
               <LogOut />
-              <span>Sign Out Admin</span>
+              <span>Sign Out</span>
             </div>
           </button>
         </div>
