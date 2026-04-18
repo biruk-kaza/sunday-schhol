@@ -64,10 +64,9 @@ export default function DashboardView() {
       // 2. Attendance Stats (Filtered for Teachers)
       let attQuery = supabase
         .from('attendance')
-        .select('is_present, session_date, session_type, students(grade)');
+        .select('is_present, status, session_date, session_type, students(grade)');
       
       if (!isAdmin && assignedGrade) {
-        // We filter attendance based on the student's grade
         attQuery = attQuery.eq('students.grade', assignedGrade);
       }
       const { data: attData } = await attQuery;
@@ -87,7 +86,7 @@ export default function DashboardView() {
       // Process Stats
       const validRecords = attData?.filter(r => r.students) || [];
       const totalRecords = validRecords.length;
-      const presentRecords = validRecords.filter(r => r.is_present).length;
+      const presentRecords = validRecords.filter(r => r.status === 'present' || (!r.status && r.is_present)).length;
       const uniqueSessions = new Set(validRecords.map(r => `${r.session_date}_${r.session_type}`)).size;
 
       // Process Grade Stats (Admin Only)
@@ -96,7 +95,7 @@ export default function DashboardView() {
         const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
         gStats = grades.map(g => {
           const gRecords = attData?.filter(r => r.students?.grade === g) || [];
-          const gPresent = gRecords.filter(r => r.is_present).length;
+          const gPresent = gRecords.filter(r => r.status === 'present' || (!r.status && r.is_present)).length;
           const pct = gRecords.length > 0 ? Math.round((gPresent / gRecords.length) * 100) : 0;
           return { name: g, percentage: pct };
         });
@@ -175,7 +174,7 @@ export default function DashboardView() {
             <div className="hero-card shadow-2xl" onClick={() => navigate('/attendance')}>
               <div className="hero-content">
                 <span className="badge">{isAdmin ? 'Executive Control' : 'Immediate Action'}</span>
-                <h2 className="text-3xl font-black mb-2" style={{ color: 'white' }}>Weekend Roll Call</h2>
+                <h2 className="text-3xl font-black mb-2" style={{ color: 'white' }}>Attendance</h2>
                 <p className="mb-6 text-lg" style={{ opacity: 0.9, color: 'rgba(255,255,255,0.9)' }}>Prepare attendance for: <span className="font-bold underline">{getNextWeekend()}</span></p>
                 <button className="hero-btn">
                   Open Attendance Sheet <ArrowRight size={20} />

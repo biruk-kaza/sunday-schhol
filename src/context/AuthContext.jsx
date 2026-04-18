@@ -26,13 +26,24 @@ export const AuthProvider = ({ children }) => {
     return () => subscription.unsubscribe();
   }, []);
 
+  const metadata = user?.user_metadata || {};
+  const assignedGrade = metadata.assigned_grade || null;
+  const assignedMode = metadata.assigned_mode || 'both'; // 'weekday', 'weekend', 'both'
+  const role = metadata.role || 'teacher';
+  const isAdmin = role === 'admin';
+
   const value = {
     session,
     user,
-    role: user?.user_metadata?.role || 'teacher', // Defaults to teacher if not specified
-    assignedGrade: user?.user_metadata?.assigned_grade || null,
-    isAdmin: user?.user_metadata?.role === 'admin',
-    loading
+    role,
+    assignedGrade,
+    assignedMode,
+    isAdmin,
+    loading,
+    // Helper: can this user see the weekend tab?
+    canSeeWeekend: isAdmin || assignedMode === 'weekend' || assignedMode === 'both',
+    // Helper: can this user see the weekday tab?
+    canSeeWeekday: isAdmin || assignedMode === 'weekday' || assignedMode === 'both',
   };
 
   return (

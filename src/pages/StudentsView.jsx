@@ -15,7 +15,7 @@ export default function StudentsView() {
   const [showEditModal, setShowEditModal] = useState(false);
   
   // Forms
-  const [newStudent, setNewStudent] = useState({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '' });
+  const [newStudent, setNewStudent] = useState({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '', program_type: 'weekend' });
   const [editingStudent, setEditingStudent] = useState(null);
   
   const fileInputRef = useRef(null);
@@ -53,6 +53,7 @@ export default function StudentsView() {
           last_name: newStudent.last_name,
           grade: newStudent.grade,
           parent_phone: newStudent.parent_phone,
+          program_type: newStudent.program_type,
           enrollment_status: 'Active',
           is_active: true
         }])
@@ -62,7 +63,7 @@ export default function StudentsView() {
       
       setStudents([...students, data[0]]);
       setShowAddModal(false);
-      setNewStudent({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '' });
+      setNewStudent({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '', program_type: 'weekend' });
     } catch (error) {
       showAlert('Error adding student: ' + error.message, { title: 'Error', variant: 'danger' });
     }
@@ -77,7 +78,8 @@ export default function StudentsView() {
           first_name: editingStudent.first_name,
           last_name: editingStudent.last_name,
           grade: editingStudent.grade,
-          parent_phone: editingStudent.parent_phone
+          parent_phone: editingStudent.parent_phone,
+          program_type: editingStudent.program_type
         })
         .eq('id', editingStudent.id);
 
@@ -256,6 +258,7 @@ export default function StudentsView() {
                 <tr>
                   <th style={{ padding: '1rem 1.5rem' }}>Full Name</th>
                   <th>Grade</th>
+                  <th>Program</th>
                   <th>Parent Phone</th>
                   <th className="text-center">Status</th>
                   <th className="text-right" style={{ paddingRight: '1.5rem' }}>Actions</th>
@@ -263,9 +266,9 @@ export default function StudentsView() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="5" className="text-center text-muted py-12">Fetching records...</td></tr>
+                  <tr><td colSpan="6" className="text-center text-muted py-12">Fetching records...</td></tr>
                 ) : filteredStudents.length === 0 ? (
-                  <tr><td colSpan="5" className="text-center text-muted py-12">No matching students found in the directory.</td></tr>
+                  <tr><td colSpan="6" className="text-center text-muted py-12">No matching students found in the directory.</td></tr>
                 ) : (
                   filteredStudents.map(s => (
                     <tr key={s.id}>
@@ -274,6 +277,11 @@ export default function StudentsView() {
                       </td>
                       <td>
                         <span className="text-xs font-bold text-muted bg-gray-50 px-2 py-1 rounded-md uppercase">{s.grade}</span>
+                      </td>
+                      <td>
+                        <span className={`text-xs font-bold px-2 py-1 rounded-md uppercase ${(s.program_type || 'weekend') === 'weekend' ? 'bg-primary/10 text-primary' : 'bg-warning/10 text-warning'}`}>
+                          {(s.program_type || 'weekend') === 'weekend' ? 'WKD' : 'WKY'}
+                        </span>
                       </td>
                       <td className="text-sm font-medium">{s.parent_phone}</td>
                       <td className="text-center">
@@ -323,6 +331,10 @@ export default function StudentsView() {
                 <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
               </select>
               <input required type="tel" placeholder="Parent Phone Number" className="form-input" value={newStudent.parent_phone} onChange={e => setNewStudent({...newStudent, parent_phone: e.target.value})} />
+              <select className="form-input" value={newStudent.program_type} onChange={e => setNewStudent({...newStudent, program_type: e.target.value})}>
+                <option value="weekend">Weekend (Sat/Sun)</option>
+                <option value="weekday">Weekday (Mon–Fri)</option>
+              </select>
               <button type="submit" className="btn-primary w-full mt-2">Create Student</button>
             </form>
           </div>
@@ -347,6 +359,10 @@ export default function StudentsView() {
                 <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
               </select>
               <input required type="tel" placeholder="Parent Phone Number" className="form-input" value={editingStudent.parent_phone} onChange={e => setEditingStudent({...editingStudent, parent_phone: e.target.value})} />
+              <select className="form-input" value={editingStudent.program_type || 'weekend'} onChange={e => setEditingStudent({...editingStudent, program_type: e.target.value})}>
+                <option value="weekend">Weekend (Sat/Sun)</option>
+                <option value="weekday">Weekday (Mon–Fri)</option>
+              </select>
               <button type="submit" className="btn-primary w-full mt-2">Update Student</button>
             </form>
           </div>

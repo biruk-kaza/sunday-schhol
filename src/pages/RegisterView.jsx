@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 
 export default function RegisterView() {
-  const [formData, setFormData] = useState({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '' });
+  const [formData, setFormData] = useState({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '', program_type: 'weekend' });
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -13,7 +13,6 @@ export default function RegisterView() {
     setErrorMsg('');
 
     try {
-      // The RLS policy allows anonymous inserts to the students table mapping.
       const { error } = await supabase
         .from('students')
         .insert([{
@@ -21,6 +20,7 @@ export default function RegisterView() {
             last_name: formData.last_name,
             grade: formData.grade,
             parent_phone: formData.parent_phone,
+            program_type: formData.program_type,
             enrollment_status: 'Pending' // Requires Admin Approval from /students view
         }]);
 
@@ -75,6 +75,13 @@ export default function RegisterView() {
               <option value="Grade 10">Grade 10</option>
               <option value="Grade 11">Grade 11</option>
               <option value="Grade 12">Grade 12</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-sm font-semibold mb-1 block">Program</label>
+            <select className="form-input" value={formData.program_type} onChange={e => setFormData({...formData, program_type: e.target.value})}>
+              <option value="weekend">Weekend (Saturday & Sunday)</option>
+              <option value="weekday">Weekday (Monday–Friday)</option>
             </select>
           </div>
           <div>
