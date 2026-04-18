@@ -745,6 +745,131 @@ button {
 .action-btn.absent.active {
   filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.5));
 }
+.action-btn:disabled {
+  cursor: default;
+}
+
+/* ============================================================
+   ATTENDANCE STATUS BADGE
+   ============================================================ */
+.att-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.att-status-badge--submitted {
+  background: var(--success-soft);
+  color: var(--success);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.att-status-badge--editing {
+  background: var(--warning-soft);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.2);
+}
+
+/* Locked row style */
+.att-locked-row {
+  opacity: 0.85;
+}
+.att-locked-row .action-btn {
+  pointer-events: none;
+}
+
+/* ============================================================
+   STICKY SUBMIT BAR
+   ============================================================ */
+.att-submit-bar {
+  position: fixed;
+  bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 8px));
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1rem;
+  background: rgba(17, 24, 39, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-medium);
+  z-index: 55;
+  animation: submitBarSlideUp 0.3s ease-out;
+}
+
+@media (min-width: 768px) {
+  .att-submit-bar {
+    left: var(--sidebar-width);
+    bottom: 0;
+    padding: 1rem 2rem;
+  }
+}
+
+@keyframes submitBarSlideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.att-submit-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.att-submit-count {
+  display: flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.att-submit-remaining {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.att-submit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-hover) 100%);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 700;
+  font-size: 0.88rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+
+.att-submit-btn:hover {
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+  transform: translateY(-1px);
+}
+
+.att-submit-btn:active {
+  transform: scale(0.97);
+}
+
+.att-submit-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
 
 /* ============================================================
    SECTION TITLES

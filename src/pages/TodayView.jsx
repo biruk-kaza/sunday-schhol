@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { CheckCircle2, XCircle, Search, UserCheck, CloudOff } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, UserCheck, CloudOff, Lock, Unlock, Send, Edit3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
@@ -13,9 +13,15 @@ export default function TodayView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGrade, setSelectedGrade] = useState(isAdmin ? 'All' : (assignedGrade || 'Grade 7'));
   const [students, setStudents] = useState([]);
-  const [attendanceLog, setAttendanceLog] = useState({});
   const [loading, setLoading] = useState(true);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+
+  // Professional attendance states
+  const [draftLog, setDraftLog] = useState({});       // Local-only marks (not saved)
+  const [submittedLog, setSubmittedLog] = useState({}); // Saved marks from DB
+  const [isSubmitted, setIsSubmitted] = useState(false); // Whether this session was already submitted
+  const [isEditing, setIsEditing] = useState(false);     // Edit mode after submission
+  const [submitting, setSubmitting] = useState(false);
 
   // Force grade if not admin
   useEffect(() => {
@@ -47,10 +53,7 @@ export default function TodayView() {
 
   // Listen for sync completion to reload data
   useEffect(() => {
-    const handleSynced = () => {
-      console.log('[TodayView] Sync completed, reloading data...');
-      loadSessionData();
-    };
+    const handleSynced = () => loadSessionData();
     window.addEventListener('attendance-synced', handleSynced);
     return () => window.removeEventListener('attendance-synced', handleSynced);
   }, [sessionType]);
@@ -63,12 +66,15 @@ export default function TodayView() {
     try {
       setLoading(true);
       setIsOfflineMode(false);
+      setIsEditing(false);
 
       if (!navigator.onLine) {
         const cachedData = await getCachedStudents();
         if (cachedData.length > 0) {
           setStudents(cachedData);
-          setAttendanceLog({});
+          setDraftLog({});
+          setSubmittedLog({});
+          setIsSubmitted(false);
           setIsOfflineMode(true);
         } else {
           setStudents([]);
@@ -76,7 +82,7 @@ export default function TodayView() {
         return;
       }
 
-      // ONLINE: Fetch students
+      // Fetch students
       const { data: studentsData, error: studentErr } = await supabase
         .from('students')
         .select('*')
@@ -84,26 +90,20 @@ export default function TodayView() {
         .eq('enrollment_status', 'Active')
         .order('first_name', { ascending: true });
         
-      if (studentErr) {
-        console.error('Student fetch error:', studentErr);
-        throw studentErr;
-      }
+      if (studentErr) throw studentErr;
 
-      // ONLINE: Fetch attendance for this session
+      // Fetch existing attendance for this session
       const { data: attData, error: attErr } = await supabase
         .from('attendance')
         .select('*')
         .eq('session_date', activeDateStr)
         .eq('session_type', sessionType);
 
-      if (attErr) {
-        console.error('Attendance fetch error:', attErr);
-        throw attErr;
-      }
+      if (attErr) throw attErr;
 
       setStudents(studentsData || []);
 
-      // Cache students for offline use
+      // Cache students for offline
       if (studentsData && studentsData.length > 0) {
         cacheStudents(studentsData).catch(err => 
           console.warn('Failed to cache students:', err)
@@ -115,16 +115,27 @@ export default function TodayView() {
       (attData || []).forEach(record => {
         logMap[record.student_id] = record.is_present;
       });
-      setAttendanceLog(logMap);
+
+      // If there are existing records, this session was already submitted
+      if (Object.keys(logMap).length > 0) {
+        setSubmittedLog(logMap);
+        setDraftLog(logMap); // Pre-fill draft with submitted data for editing
+        setIsSubmitted(true);
+      } else {
+        setSubmittedLog({});
+        setDraftLog({});
+        setIsSubmitted(false);
+      }
 
     } catch (err) {
       console.error('Error loading session data:', err.message || err);
-      // Fallback to cache on network error
       try {
         const cachedData = await getCachedStudents();
         if (cachedData.length > 0) {
           setStudents(cachedData);
-          setAttendanceLog({});
+          setDraftLog({});
+          setSubmittedLog({});
+          setIsSubmitted(false);
           setIsOfflineMode(true);
         }
       } catch (cacheErr) {
@@ -135,90 +146,102 @@ export default function TodayView() {
     }
   }
 
-  async function handleMarkAttendance(studentId, isPresent) {
-    // Optimistic UI update
-    setAttendanceLog(prev => ({ ...prev, [studentId]: isPresent }));
-
-    const record = {
-      student_id: studentId,
-      session_date: activeDateStr,
-      session_type: sessionType,
-      is_present: isPresent
-    };
-
-    if (!navigator.onLine) {
-      try {
-        await saveOfflineAttendance(record);
-      } catch (err) {
-        console.error('Failed to save offline:', err);
-      }
-      return;
-    }
-
-    // ONLINE: Upsert to Supabase with PROPER error checking
-    const { error } = await supabase
-      .from('attendance')
-      .upsert(record, { onConflict: 'student_id, session_date, session_type' });
-
-    if (error) {
-      console.error('Supabase upsert failed:', error);
-      // Revert the optimistic update
-      setAttendanceLog(prev => {
-        const next = { ...prev };
-        delete next[studentId];
-        return next;
-      });
-      // Try saving offline as fallback
-      try {
-        await saveOfflineAttendance(record);
-        setAttendanceLog(prev => ({ ...prev, [studentId]: isPresent }));
-      } catch (offlineErr) {
-        console.error('Offline fallback also failed:', offlineErr);
-      }
-    }
+  // Mark a student in draft (local only — not saved yet)
+  function handleMark(studentId, isPresent) {
+    if (isSubmitted && !isEditing) return; // Locked
+    setDraftLog(prev => ({ ...prev, [studentId]: isPresent }));
   }
 
-  async function handleMarkAllPresent() {
+  // Mark all visible students as present in draft
+  function handleMarkAllPresent() {
+    if (isSubmitted && !isEditing) return;
+    const nextLog = { ...draftLog };
+    filteredStudents.forEach(s => { nextLog[s.id] = true; });
+    setDraftLog(nextLog);
+  }
+
+  // Submit all draft marks to Supabase
+  async function handleSubmit() {
+    const markedStudents = filteredStudents.filter(s => draftLog[s.id] !== undefined);
+    const unmarked = filteredStudents.length - markedStudents.length;
+    const presentCount = filteredStudents.filter(s => draftLog[s.id] === true).length;
+    const absentCount = filteredStudents.filter(s => draftLog[s.id] === false).length;
+
+    if (markedStudents.length === 0) {
+      await showAlert('Please mark at least one student before submitting.', { title: 'No Records', variant: 'warning' });
+      return;
+    }
+
+    let message = `${presentCount} present, ${absentCount} absent`;
+    if (unmarked > 0) {
+      message += `. ${unmarked} student${unmarked !== 1 ? 's' : ''} not marked — they will be skipped.`;
+    }
+
     const ok = await confirm(
-      `Mark all ${filteredStudents.length} students in ${selectedGrade} as present?`,
-      { title: 'Bulk Attendance', confirmText: 'Mark All Present', variant: 'primary' }
+      message,
+      { 
+        title: isEditing ? 'Update Attendance' : 'Submit Attendance', 
+        confirmText: isEditing ? 'Save Changes' : 'Submit', 
+        variant: 'primary' 
+      }
     );
     if (!ok) return;
-    
-    const updates = filteredStudents.map(s => ({
-      student_id: s.id,
-      session_date: activeDateStr,
-      session_type: sessionType,
-      is_present: true
-    }));
+
+    setSubmitting(true);
+
+    // Build records only for marked students
+    const records = filteredStudents
+      .filter(s => draftLog[s.id] !== undefined)
+      .map(s => ({
+        student_id: s.id,
+        session_date: activeDateStr,
+        session_type: sessionType,
+        is_present: draftLog[s.id]
+      }));
 
     if (!navigator.onLine) {
+      // Offline: queue all records
       try {
-        for (const record of updates) {
+        for (const record of records) {
           await saveOfflineAttendance(record);
         }
-        const nextLog = { ...attendanceLog };
-        filteredStudents.forEach(s => nextLog[s.id] = true);
-        setAttendanceLog(nextLog);
+        setSubmittedLog({ ...draftLog });
+        setIsSubmitted(true);
+        setIsEditing(false);
       } catch (err) {
         await showAlert('Failed to save offline: ' + err.message, { title: 'Error', variant: 'danger' });
+      } finally {
+        setSubmitting(false);
       }
       return;
     }
 
-    // ONLINE with proper error checking
+    // Online: upsert all records at once
     const { error } = await supabase
       .from('attendance')
-      .upsert(updates, { onConflict: 'student_id, session_date, session_type' });
-    
+      .upsert(records, { onConflict: 'student_id, session_date, session_type' });
+
     if (error) {
-      await showAlert('Bulk mark failed: ' + error.message, { title: 'Error', variant: 'danger' });
+      console.error('Submit failed:', error);
+      await showAlert('Failed to submit attendance: ' + error.message, { title: 'Error', variant: 'danger' });
+      setSubmitting(false);
       return;
     }
-    
-    const nextLog = { ...attendanceLog };
-    filteredStudents.forEach(s => nextLog[s.id] = true);
-    setAttendanceLog(nextLog);
+
+    setSubmittedLog({ ...draftLog });
+    setIsSubmitted(true);
+    setIsEditing(false);
+    setSubmitting(false);
+  }
+
+  // Enter edit mode
+  async function handleEdit() {
+    const ok = await confirm(
+      'Unlock this session to make corrections?',
+      { title: 'Edit Attendance', confirmText: 'Unlock & Edit', variant: 'warning' }
+    );
+    if (!ok) return;
+    setIsEditing(true);
   }
 
   const filteredStudents = students.filter(s => {
@@ -227,10 +250,30 @@ export default function TodayView() {
     return matchesSearch && matchesGrade;
   });
 
+  // The active log to display (draft when marking, submitted when locked)
+  const displayLog = (isSubmitted && !isEditing) ? submittedLog : draftLog;
+  const isLocked = isSubmitted && !isEditing;
+
+  // Stats for the submit bar
+  const totalFiltered = filteredStudents.length;
+  const markedCount = filteredStudents.filter(s => draftLog[s.id] !== undefined).length;
+  const presentCount = filteredStudents.filter(s => draftLog[s.id] === true).length;
+
   return (
     <div className="page-container">
       <div className="header-glass glass">
-        <h1 className="page-title">Attendance Tracking</h1>
+        <div className="flex items-center justify-between mb-2" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+          <h1 className="page-title m-0">Attendance Tracking</h1>
+          {isSubmitted && (
+            <div className={`att-status-badge ${isEditing ? 'att-status-badge--editing' : 'att-status-badge--submitted'}`}>
+              {isEditing ? (
+                <><Unlock size={13} /> Editing</>
+              ) : (
+                <><Lock size={13} /> Submitted</>
+              )}
+            </div>
+          )}
+        </div>
         <div className="session-toggle">
           <button className={`toggle-btn ${sessionType === 'Saturday' ? 'active' : ''}`} onClick={() => setSessionType('Saturday')}>Saturday</button>
           <button className={`toggle-btn ${sessionType === 'Sunday' ? 'active' : ''}`} onClick={() => setSessionType('Sunday')}>Sunday</button>
@@ -246,13 +289,13 @@ export default function TodayView() {
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6" style={{ alignItems: 'center' }}>
-          <div className="search-container flex-1 bg-white" style={{ marginBottom: 0, border: '1px solid rgba(0,0,0,0.05)', width: '100%' }}>
+          <div className="search-container flex-1 bg-white" style={{ marginBottom: 0, width: '100%' }}>
             <Search size={20} className="text-muted" />
             <input type="text" placeholder="Search student..." className="search-input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
           
           {isAdmin ? (
-            <select className="form-input" style={{ width: 'auto', border: '1px solid rgba(0,0,0,0.05)' }} value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)}>
+            <select className="form-input" style={{ width: 'auto' }} value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)}>
               <option value="All">All Grades</option>
               <option value="Grade 7">Grade 7</option><option value="Grade 8">Grade 8</option><option value="Grade 9">Grade 9</option>
               <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
@@ -263,22 +306,28 @@ export default function TodayView() {
             </div>
           )}
 
-          {selectedGrade !== 'All' && filteredStudents.length > 0 && (
-            <button className="btn-primary flex items-center gap-2 px-4 whitespace-nowrap w-full sm:w-auto" onClick={handleMarkAllPresent}>
-              <UserCheck size={18} /> Mark All Present
+          {!isLocked && selectedGrade !== 'All' && filteredStudents.length > 0 && (
+            <button className="btn-outline flex items-center gap-2 px-4 whitespace-nowrap w-full sm:w-auto" onClick={handleMarkAllPresent}>
+              <UserCheck size={18} /> All Present
+            </button>
+          )}
+
+          {isSubmitted && !isEditing && (
+            <button className="btn-outline flex items-center gap-2 px-4 whitespace-nowrap w-full sm:w-auto" onClick={handleEdit} style={{ borderColor: 'rgba(245, 158, 11, 0.3)', color: 'var(--warning)' }}>
+              <Edit3 size={16} /> Edit
             </button>
           )}
         </div>
 
-        <div className="student-list mt-8">
+        <div className="student-list mt-4">
           <h2 className="section-title flex items-center justify-between px-2">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
               <span>{displayDateStr}</span>
               {isPastSession && <span className="text-xs bg-warning text-white px-2 py-1 rounded-full font-semibold">Previous Weekend</span>}
               {!isPastSession && !isFutureSession && <span className="text-xs bg-success text-white px-2 py-1 rounded-full font-semibold">Active Session</span>}
               {isFutureSession && <span className="text-xs bg-primary text-white px-2 py-1 rounded-full font-semibold">Upcoming</span>}
             </div>
-            <span className="text-sm font-normal text-muted">{filteredStudents.length} Students listed</span>
+            <span className="text-sm font-normal text-muted">{filteredStudents.length} Students</span>
           </h2>
           
           {loading ? (
@@ -287,11 +336,11 @@ export default function TodayView() {
             <div className="card text-center text-muted py-8 glass">No matching students found in the directory.</div>
           ) : (
             filteredStudents.map((student, index) => {
-              const presentState = attendanceLog[student.id];
+              const presentState = displayLog[student.id];
               return (
                 <div 
                   key={student.id} 
-                  className="student-row card flex justify-between items-center glass hover:bg-white transition-colors"
+                  className={`student-row card flex justify-between items-center glass transition-colors ${isLocked ? 'att-locked-row' : ''}`}
                   style={{ animationDelay: `${index * 30}ms` }}
                 >
                   <div>
@@ -299,15 +348,62 @@ export default function TodayView() {
                     <p className="text-muted m-0 text-xs mt-1 font-semibold uppercase tracking-wider">{student.grade}</p>
                   </div>
                   <div className="attendance-actions">
-                    <button onClick={() => handleMarkAttendance(student.id, true)} className={`action-btn present ${presentState === true ? 'active' : ''}`}><CheckCircle2 size={32} /></button>
-                    <button onClick={() => handleMarkAttendance(student.id, false)} className={`action-btn absent ${presentState === false ? 'active' : ''}`}><XCircle size={32} /></button>
+                    <button 
+                      onClick={() => handleMark(student.id, true)} 
+                      className={`action-btn present ${presentState === true ? 'active' : ''}`}
+                      disabled={isLocked}
+                    >
+                      <CheckCircle2 size={32} />
+                    </button>
+                    <button 
+                      onClick={() => handleMark(student.id, false)} 
+                      className={`action-btn absent ${presentState === false ? 'active' : ''}`}
+                      disabled={isLocked}
+                    >
+                      <XCircle size={32} />
+                    </button>
                   </div>
                 </div>
               );
             })
           )}
         </div>
+
+        {/* Spacer for submit bar */}
+        {!isLocked && filteredStudents.length > 0 && !loading && (
+          <div style={{ height: '90px' }} />
+        )}
       </div>
+
+      {/* Sticky Submit Bar */}
+      {!isLocked && filteredStudents.length > 0 && !loading && (
+        <div className="att-submit-bar">
+          <div className="att-submit-info">
+            <span className="att-submit-count">
+              <span className="text-success font-black">{presentCount}</span>
+              <span className="text-muted">/</span>
+              <span>{totalFiltered}</span>
+              <span className="text-muted text-xs ml-1">present</span>
+            </span>
+            {markedCount < totalFiltered && (
+              <span className="att-submit-remaining">
+                {totalFiltered - markedCount} unmarked
+              </span>
+            )}
+          </div>
+          <button 
+            className="att-submit-btn" 
+            onClick={handleSubmit}
+            disabled={submitting || markedCount === 0}
+          >
+            {submitting ? (
+              <span className="animate-pulse">Saving...</span>
+            ) : (
+              <><Send size={16} /> {isEditing ? 'Save Changes' : 'Submit Attendance'}</>
+            )}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
