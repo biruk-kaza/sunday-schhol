@@ -40,12 +40,22 @@ function ProtectedRoute({ children, adminOnly = false }) {
   return children;
 }
 
-// Wrapper component to hide navigation on public routes
+// Wrapper component to handle layout based on route
 function Layout() {
   const location = useLocation();
-  const { session } = useAuth();
+  const { session, loading } = useAuth();
   const isPublicRoute = location.pathname === '/register' || location.pathname === '/login';
 
+  // Show loading only for protected routes
+  if (loading && !isPublicRoute) {
+    return (
+      <div className="page-container flex items-center justify-center min-h-screen">
+        <div className="text-muted animate-pulse" style={{ textAlign: 'center' }}>Loading...</div>
+      </div>
+    );
+  }
+
+  // Public routes render without sidebar/nav
   if (isPublicRoute) {
     return (
       <main className="w-full h-full">
