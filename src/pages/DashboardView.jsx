@@ -169,19 +169,19 @@ export default function DashboardView() {
               <div className="hero-content">
                 <span className="badge">{isAdmin ? 'Executive Control' : 'Immediate Action'}</span>
                 <h2 className="text-3xl font-black mb-2" style={{ color: 'white' }}>Weekend Roll Call</h2>
-                <p className="mb-6 text-lg" style={{ opacity: 0.9, color: 'white' }}>Prepare attendance for: <span className="font-bold underline">{getNextWeekend()}</span></p>
+                <p className="mb-6 text-lg" style={{ opacity: 0.9, color: 'rgba(255,255,255,0.9)' }}>Prepare attendance for: <span className="font-bold underline">{getNextWeekend()}</span></p>
                 <button className="hero-btn">
                   Open Attendance Sheet <ArrowRight size={20} />
                 </button>
               </div>
-              <div style={{ position: 'absolute', bottom: '-40px', right: '-40px', width: '240px', height: '240px', background: 'white', opacity: 0.1, borderRadius: '50%', filter: 'blur(40px)' }}></div>
+              <div style={{ position: 'absolute', bottom: '-40px', right: '-40px', width: '240px', height: '240px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%', filter: 'blur(40px)' }}></div>
             </div>
 
             {/* Admin-only Grade Breakdown */}
             {isAdmin && (
               <div className="card glass animate-fade-in">
-                <h3 className="section-title flex items-center gap-2 mb-8" style={{ color: 'var(--text-main)', fontWeight: 800 }}>
-                  <TrendingUp size={18} className="text-primary" /> Grade-Level performance
+                <h3 className="section-title flex items-center gap-2 mb-8" style={{ color: 'var(--text-secondary)', fontWeight: 800 }}>
+                  <TrendingUp size={18} className="text-primary" /> Grade-Level Performance
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-8 gap-y-6">
                   {gradeStats.map(g => (
@@ -231,7 +231,7 @@ export default function DashboardView() {
                 )}
               </div>
 
-              <div className="card glass text-center" style={{ padding: '2.5rem 1.5rem', height: 'fit-content' }}>
+              <div className="card glass text-center" style={{ padding: '2.5rem 1.5rem', height: 'fit-content', borderColor: 'rgba(34, 197, 94, 0.15)' }}>
                 <p className="text-xs font-bold text-muted uppercase mb-4">Security Status</p>
                 <div className="flex items-center justify-center gap-3 text-success font-black text-sm">
                   <ShieldCheck size={18} /> Portals Verified

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle2, XCircle, Search, UserCheck } from 'lucide-react';
+import { CheckCircle2, XCircle, Search, UserCheck, CloudOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { format, isSaturday, isSunday, previousSaturday, previousSunday, nextSunday } from 'date-fns';
+import { saveOfflineAttendance, cacheStudents, getCachedStudents } from '../lib/offlineDb';
+import { syncOfflineRecords } from '../lib/syncEngine';
 
 export default function TodayView() {
   const { isAdmin, assignedGrade } = useAuth();
@@ -12,6 +14,7 @@ export default function TodayView() {
   const [students, setStudents] = useState([]);
   const [attendanceLog, setAttendanceLog] = useState({});
   const [loading, setLoading] = useState(true);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
 
   // Force grade if not admin
   useEffect(() => {
@@ -48,6 +51,22 @@ export default function TodayView() {
   async function loadSessionData() {
     try {
       setLoading(true);
+      setIsOfflineMode(false);
+
+      if (!navigator.onLine) {
+        // OFFLINE: Load from cache
+        const cachedData = await getCachedStudents();
+        if (cachedData.length > 0) {
+          setStudents(cachedData);
+          setAttendanceLog({});
+          setIsOfflineMode(true);
+        } else {
+          setStudents([]);
+        }
+        return;
+      }
+
+      // ONLINE: Normal Supabase fetch
       const { data: studentsData, error: studentErr } = await supabase
         .from('students')
         .select('*')
@@ -66,6 +85,14 @@ export default function TodayView() {
       if (attErr) throw attErr;
 
       setStudents(studentsData || []);
+
+      // Cache students for offline use
+      if (studentsData && studentsData.length > 0) {
+        cacheStudents(studentsData).catch(err => 
+          console.warn('Failed to cache students:', err)
+        );
+      }
+
       const logMap = {};
       (attData || []).forEach(record => {
         logMap[record.student_id] = record.is_present;
@@ -73,6 +100,17 @@ export default function TodayView() {
       setAttendanceLog(logMap);
     } catch (err) {
       console.error('Error loading session data:', err.message);
+      // Fallback to cache on network error
+      try {
+        const cachedData = await getCachedStudents();
+        if (cachedData.length > 0) {
+          setStudents(cachedData);
+          setAttendanceLog({});
+          setIsOfflineMode(true);
+        }
+      } catch (cacheErr) {
+        console.error('Cache fallback also failed:', cacheErr);
+      }
     } finally {
       setLoading(false);
     }
@@ -80,15 +118,37 @@ export default function TodayView() {
 
   async function handleMarkAttendance(studentId, isPresent) {
     setAttendanceLog(prev => ({ ...prev, [studentId]: isPresent }));
+
+    const record = {
+      student_id: studentId,
+      session_date: activeDateStr,
+      session_type: sessionType,
+      is_present: isPresent
+    };
+
+    if (!navigator.onLine) {
+      // OFFLINE: Save to IndexedDB queue
+      try {
+        await saveOfflineAttendance(record);
+      } catch (err) {
+        console.error('Failed to save offline:', err);
+      }
+      return;
+    }
+
+    // ONLINE: Normal Supabase upsert
     try {
-      await supabase.from('attendance').upsert({
-        student_id: studentId,
-        session_date: activeDateStr,
-        session_type: sessionType,
-        is_present: isPresent
-      }, { onConflict: 'student_id, session_date, session_type' });
+      await supabase.from('attendance').upsert(record, { 
+        onConflict: 'student_id, session_date, session_type' 
+      });
     } catch (error) {
       console.error('Marking attendance failed:', error.message);
+      // Save offline as fallback
+      try {
+        await saveOfflineAttendance(record);
+      } catch (offlineErr) {
+        console.error('Offline fallback also failed:', offlineErr);
+      }
       loadSessionData();
     }
   }
@@ -103,6 +163,22 @@ export default function TodayView() {
       is_present: true
     }));
 
+    if (!navigator.onLine) {
+      // OFFLINE: Queue all records
+      try {
+        for (const record of updates) {
+          await saveOfflineAttendance(record);
+        }
+        const nextLog = { ...attendanceLog };
+        filteredStudents.forEach(s => nextLog[s.id] = true);
+        setAttendanceLog(nextLog);
+      } catch (err) {
+        alert('Failed to save offline: ' + err.message);
+      }
+      return;
+    }
+
+    // ONLINE: Normal bulk upsert
     try {
       const { error } = await supabase.from('attendance').upsert(updates, { onConflict: 'student_id, session_date, session_type' });
       if (error) throw error;
@@ -132,6 +208,13 @@ export default function TodayView() {
       </div>
 
       <div className="content">
+        {isOfflineMode && (
+          <div className="offline-mode-badge">
+            <CloudOff size={14} />
+            <span>Offline mode — using cached roster</span>
+          </div>
+        )}
+
         <div className="flex flex-col sm:flex-row gap-3 mb-6" style={{ alignItems: 'center' }}>
           <div className="search-container flex-1 bg-white" style={{ marginBottom: 0, border: '1px solid rgba(0,0,0,0.05)', width: '100%' }}>
             <Search size={20} className="text-muted" />
@@ -173,10 +256,14 @@ export default function TodayView() {
           ) : filteredStudents.length === 0 ? (
             <div className="card text-center text-muted py-8 glass">No matching students found in the directory.</div>
           ) : (
-            filteredStudents.map(student => {
+            filteredStudents.map((student, index) => {
               const presentState = attendanceLog[student.id];
               return (
-                <div key={student.id} className="student-row card flex justify-between items-center glass hover:bg-white transition-colors">
+                <div 
+                  key={student.id} 
+                  className="student-row card flex justify-between items-center glass hover:bg-white transition-colors"
+                  style={{ animationDelay: `${index * 30}ms` }}
+                >
                   <div>
                     <p className="font-bold m-0" style={{ fontSize: '1.05rem' }}>{student.first_name} {student.last_name}</p>
                     <p className="text-muted m-0 text-xs mt-1 font-semibold uppercase tracking-wider">{student.grade}</p>

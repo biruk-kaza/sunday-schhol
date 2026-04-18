@@ -161,11 +161,11 @@ export default function HistoryView() {
                 <div key={sessionKey} className="card glass transition-all overflow-hidden p-0 border-none shadow-sm">
                   <div className="history-card-header cursor-pointer hover:bg-white transition-colors" onClick={() => toggleSession(sessionKey)}>
                     <div className="flex items-center gap-5">
-                      <div className="icon-wrapper m-0 bg-primary/10 text-primary w-12 h-12 flex items-center justify-center rounded-xl" style={{ backgroundColor: 'rgba(0, 102, 255, 0.1)' }}>
+                      <div className="icon-wrapper m-0 bg-primary/10 text-primary w-12 h-12 flex items-center justify-center rounded-xl">
                         <CalendarIcon size={20} />
                       </div>
                       <div>
-                        <h3 className="font-black text-lg leading-tight m-0 text-gray-900">{format(parseISO(session.date), 'MMMM do, yyyy')}</h3>
+                        <h3 className="font-black text-lg leading-tight m-0">{format(parseISO(session.date), 'MMMM do, yyyy')}</h3>
                         <span className={`px-2 py-0.5 text-[9px] font-black rounded-md text-white mt-1.5 inline-block uppercase tracking-wider`} style={{ backgroundColor: session.type === 'Sunday' ? '#6366f1' : '#f97316' }}>
                           {session.type}
                         </span>
@@ -184,7 +184,7 @@ export default function HistoryView() {
                   </div>
 
                   {isSessionExpanded && (
-                    <div className="bg-gray-50/40 border-t border-gray-100 p-4 sm:p-8 animate-fade-in">
+                    <div className="border-t p-4 sm:p-8 animate-fade-in" style={{ background: 'rgba(255,255,255,0.02)' }}>
                       <div className="flex flex-col gap-3">
                         {Object.entries(session.gradeData)
                           .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
@@ -201,7 +201,7 @@ export default function HistoryView() {
                                       <FileSpreadsheet size={18} />
                                     </div>
                                     <div className="flex flex-col">
-                                      <p className="text-sm font-black m-0 text-gray-900 uppercase tracking-tight mb-1">{grade}</p>
+                                      <p className="text-sm font-black m-0 uppercase tracking-tight mb-1">{grade}</p>
                                       <p className="text-[10px] text-muted m-0 font-bold tracking-wide">{gData.present} / {gData.total} Students Recorded</p>
                                     </div>
                                   </div>
@@ -223,11 +223,11 @@ export default function HistoryView() {
                                 </div>
 
                                 {isGradeExpanded && (
-                                  <div className="mx-2 sm:mx-6 mb-6 p-6 border border-gray-100 bg-white rounded-3xl shadow-xl animate-fade-in">
+                                  <div className="mx-2 sm:mx-6 mb-6 p-6 border rounded-3xl shadow-xl animate-fade-in" style={{ background: 'var(--bg-card)' }}>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
                                       {gData.students.sort((a,b) => a.name.localeCompare(b.name)).map((s, idx) => (
                                         <div key={idx} className="flex items-center justify-between py-2.5 px-4 hover:bg-gray-50 rounded-2xl transition-colors">
-                                          <span className="text-xs font-bold text-gray-700">{s.name}</span>
+                                          <span className="text-xs font-bold">{s.name}</span>
                                           <span className={`flex items-center gap-2 text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg ${s.status === 'Present' ? 'text-success bg-success/5' : 'text-danger bg-danger/5'}`}>
                                             {s.status === 'Present' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
                                             {s.status}

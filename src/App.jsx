@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 import MobileHeader from './components/MobileHeader';
+import NetworkBanner from './components/NetworkBanner';
 import TodayView from './pages/TodayView';
 import DashboardView from './pages/DashboardView';
 import ActionRequiredView from './pages/ActionRequiredView';
@@ -12,6 +13,10 @@ import SettingsView from './pages/SettingsView';
 import StudentsView from './pages/StudentsView';
 import RegisterView from './pages/RegisterView';
 import LoginView from './pages/LoginView';
+import { initSyncEngine } from './lib/syncEngine';
+
+// Initialize the offline sync engine once at module level
+initSyncEngine();
 
 // Protected Route Wrapper using Auth Context
 function ProtectedRoute({ children, adminOnly = false }) {
@@ -53,6 +58,7 @@ function Layout() {
 
   return (
     <div className="app-layout">
+      {session && <NetworkBanner />}
       {session && <Sidebar />}
       {session && <MobileHeader />}
       <main className="main-content">

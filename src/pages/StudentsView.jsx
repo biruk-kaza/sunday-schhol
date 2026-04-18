@@ -247,7 +247,7 @@ export default function StudentsView() {
           <div className="table-responsive">
             <table className="student-table w-full">
               <thead>
-                <tr style={{ background: 'rgba(0,0,0,0.02)' }}>
+                <tr>
                   <th style={{ padding: '1rem 1.5rem' }}>Full Name</th>
                   <th>Grade</th>
                   <th>Parent Phone</th>
@@ -264,7 +264,7 @@ export default function StudentsView() {
                   filteredStudents.map(s => (
                     <tr key={s.id}>
                       <td style={{ paddingLeft: '1.5rem' }}>
-                        <p className="font-black m-0 text-gray-900">{s.first_name} {s.last_name}</p>
+                        <p className="font-black m-0">{s.first_name} {s.last_name}</p>
                       </td>
                       <td>
                         <span className="text-xs font-bold text-muted bg-gray-50 px-2 py-1 rounded-md uppercase">{s.grade}</span>

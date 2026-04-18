@@ -57,7 +57,7 @@ export default function LoginView() {
             <label className="text-sm font-semibold mb-1 block">Password</label>
             <input required type="password" className="form-input" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} />
           </div>
-          <button type="submit" disabled={isLoading} className="btn-primary py-4 mt-4" style={{ fontSize: '1.1rem', background: 'linear-gradient(135deg, #0066FF 0%, #0044BB 100%)', border: 'none', borderRadius: 'var(--radius-md)' }}>
+          <button type="submit" disabled={isLoading} className="btn-primary py-4 mt-4" style={{ fontSize: '1.1rem', border: 'none', borderRadius: 'var(--radius-md)' }}>
             {isLoading ? 'Authenticating...' : 'Sign Into Portal'}
           </button>
         </form>
