@@ -14,9 +14,11 @@ export const AuthProvider = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+    }).catch(() => {
+      setLoading(false);
     });
 
-    // Listen for changes
+    // Listen for changes (login, logout, token refresh)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -28,7 +30,7 @@ export const AuthProvider = ({ children }) => {
 
   const metadata = user?.user_metadata || {};
   const assignedGrade = metadata.assigned_grade || null;
-  const assignedMode = metadata.assigned_mode || 'both'; // 'weekday', 'weekend', 'both'
+  const assignedMode = metadata.assigned_mode || 'both';
   const role = metadata.role || 'teacher';
   const isAdmin = role === 'admin';
 
@@ -40,15 +42,14 @@ export const AuthProvider = ({ children }) => {
     assignedMode,
     isAdmin,
     loading,
-    // Helper: can this user see the weekend tab?
     canSeeWeekend: isAdmin || assignedMode === 'weekend' || assignedMode === 'both',
-    // Helper: can this user see the weekday tab?
     canSeeWeekday: isAdmin || assignedMode === 'weekday' || assignedMode === 'both',
   };
 
+  // ALWAYS render children — let routes handle loading state
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
