@@ -11,9 +11,11 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
 import { format, parseISO } from 'date-fns';
 
 export default function HistoryView() {
+  const { t } = useLanguage();
   const [historyDocs, setHistoryDocs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedSessions, setExpandedSessions] = useState(new Set());

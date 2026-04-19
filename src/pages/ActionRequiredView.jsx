@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Phone, MessageSquare, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ActionRequiredView() {
+  const { t } = useLanguage();
   const [highRiskStudents, setHighRiskStudents] = useState([]);
   const [loading, setLoading] = useState(true);
 

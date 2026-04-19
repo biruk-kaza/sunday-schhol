@@ -15,7 +15,7 @@ import {
 
 export default function Sidebar() {
   const { isAdmin } = useAuth();
-  const { t } = useLanguage();
+  const { t, language, toggleLanguage } = useLanguage();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -63,7 +63,16 @@ export default function Sidebar() {
         )}
       </nav>
 
-      <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.04)' }}>
+      <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid rgba(0,0,0,0.04)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <button 
+          onClick={toggleLanguage} 
+          className="btn-outline flex items-center justify-center gap-2 w-full mx-auto"
+          style={{ padding: '0.5rem', width: '90%' }}
+        >
+          <span className={language === 'en' ? 'font-black text-primary' : 'text-muted'}>ENG</span>
+          <span className="text-muted text-xs">/</span>
+          <span className={language === 'am' ? 'font-black text-primary' : 'text-muted'}>አማርኛ</span>
+        </button>
         <button 
           onClick={handleLogout} 
           className="sidebar-item w-full text-danger"

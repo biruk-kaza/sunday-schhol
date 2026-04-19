@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 import { 
   MoreVertical, 
   LogOut, 
@@ -13,6 +14,7 @@ import {
 export default function MobileHeader() {
   const { isAdmin, user } = useAuth();
   const navigate = useNavigate();
+  const { t, language, toggleLanguage } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef(null);
 
@@ -48,7 +50,7 @@ export default function MobileHeader() {
     <header className="mobile-header mobile-only">
       <div className="mobile-header-brand">
         <img src="/sunday_school_pro_logo.png" alt="Logo" className="mobile-header-logo" />
-        <span className="mobile-header-title">Sunday School Pro</span>
+        <span className="mobile-header-title">{t('app.title')}</span>
       </div>
 
       <div className="mobile-header-actions" ref={menuRef}>
@@ -76,7 +78,7 @@ export default function MobileHeader() {
               <div className="mobile-dropdown-item" style={{ cursor: 'default', opacity: 0.7 }}>
                 <User size={18} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', minWidth: 0 }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>{isAdmin ? 'Administrator' : 'Teacher'}</span>
+                  <span style={{ fontWeight: 700, fontSize: '0.8rem' }}>{isAdmin ? 'Administrator' : t('set.role')}</span>
                   <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {user?.email || 'User'}
                   </span>
@@ -85,15 +87,30 @@ export default function MobileHeader() {
 
               <div className="mobile-dropdown-divider" />
 
+              {/* Language Toggle */}
+              <button 
+                 onClick={toggleLanguage} 
+                 className="mobile-dropdown-item flex items-center justify-between"
+               >
+                 <span>{t('set.language')}</span>
+                 <div className="flex gap-1 text-xs">
+                   <span className={language === 'en' ? 'font-black text-primary' : 'text-muted'}>ENG</span>
+                   <span className="text-muted">/</span>
+                   <span className={language === 'am' ? 'font-black text-primary' : 'text-muted'}>አማ</span>
+                 </div>
+               </button>
+
+               <div className="mobile-dropdown-divider" />
+
               {isAdmin && (
                 <>
                   <button className="mobile-dropdown-item" onClick={() => handleNavigate('/action')}>
                     <AlertCircle size={18} />
-                    <span>Risk Watch</span>
+                    <span>{t('nav.riskWatch')}</span>
                   </button>
                   <button className="mobile-dropdown-item" onClick={() => handleNavigate('/settings')}>
                     <Settings size={18} />
-                    <span>Settings</span>
+                    <span>{t('nav.settings')}</span>
                   </button>
                   <div className="mobile-dropdown-divider" />
                 </>
@@ -101,7 +118,7 @@ export default function MobileHeader() {
 
               <button className="mobile-dropdown-item danger" onClick={handleSignOut} id="mobile-sign-out-btn">
                 <LogOut size={18} />
-                <span>Sign Out</span>
+                <span>{t('btn.signOut')}</span>
               </button>
             </div>
           </>

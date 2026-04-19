@@ -180,10 +180,10 @@ export default function DashboardView() {
                   {t('dash.attendanceTitle')}
                 </h3>
                 <span className="text-xs font-semibold py-1 px-3 rounded-full bg-white/10 text-white">
-                  {nextTargetDate}
+                  {getNextWeekend()}
                 </span>
               </div>
-              <p className="text-muted text-sm mb-6">{t('dash.prepareAttendance')} {nextTargetDate}.</p>
+              <p className="text-muted text-sm mb-6">{t('dash.prepareAttendance')} {getNextWeekend()}.</p>
               <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => navigate('/attendance')}>
                 {t('dash.openAttendance')} <ArrowRight size={16} />
               </button>
