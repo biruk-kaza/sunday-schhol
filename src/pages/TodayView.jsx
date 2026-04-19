@@ -3,6 +3,7 @@ import { CheckCircle2, XCircle, Search, UserCheck, CloudOff, Lock, Unlock, Send,
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
+import { useLanguage } from '../context/LanguageContext';
 import { format, isSaturday, isSunday, isMonday, isTuesday, isWednesday, isThursday, isFriday, previousSaturday, previousSunday, nextSunday, previousMonday, previousFriday, startOfWeek, addDays } from 'date-fns';
 import { saveOfflineAttendance, cacheStudents, getCachedStudents } from '../lib/offlineDb';
 
@@ -22,6 +23,7 @@ function isWeekdayName(name) {
 export default function TodayView() {
   const { isAdmin, assignedGrade, assignedMode, canSeeWeekend, canSeeWeekday } = useAuth();
   const { confirm, alert: showAlert } = useDialog();
+  const { t } = useLanguage();
   
   const todayName = getTodayName();
 
@@ -226,17 +228,17 @@ export default function TodayView() {
     const permissionCount = filteredStudents.filter(s => draftLog[s.id] === 'permission').length;
 
     if (markedStudents.length === 0) {
-      await showAlert('Please mark at least one student before submitting.', { title: 'No Records', variant: 'warning' });
+      await showAlert(t('att.noStudents'), { title: 'No Records', variant: 'warning' });
       return;
     }
 
-    let message = `${presentCount} present, ${absentCount} absent`;
-    if (permissionCount > 0) message += `, ${permissionCount} permission`;
-    if (unmarked > 0) message += `. ${unmarked} student${unmarked !== 1 ? 's' : ''} not marked.`;
+    let message = `${presentCount} ${t('att.present').toLowerCase()}, ${absentCount} ${t('att.absent').toLowerCase()}`;
+    if (permissionCount > 0) message += `, ${permissionCount} ${t('att.permission').toLowerCase()}`;
+    if (unmarked > 0) message += `. ${unmarked} ${t('att.unmarked')}.`;
 
     const ok = await confirm(message, {
-      title: isEditing ? 'Update Attendance' : 'Submit Attendance',
-      confirmText: isEditing ? 'Save Changes' : 'Submit',
+      title: isEditing ? t('btn.edit') : t('btn.submit'),
+      confirmText: isEditing ? t('btn.save') : t('btn.submit'),
       variant: 'primary'
     });
     if (!ok) return;
@@ -315,10 +317,10 @@ export default function TodayView() {
     <div className="page-container">
       <div className="header-glass glass">
         <div className="flex items-center justify-between mb-2" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
-          <h1 className="page-title m-0">Attendance</h1>
+          <h1 className="page-title m-0">{t('att.title')}</h1>
           {isSubmitted && (
             <div className={`att-status-badge ${isEditing ? 'att-status-badge--editing' : 'att-status-badge--submitted'}`}>
-              {isEditing ? <><Unlock size={13} /> Editing</> : <><Lock size={13} /> Submitted</>}
+              {isEditing ? <><Unlock size={13} /> {t('att.editing')}</> : <><Lock size={13} /> {t('att.submitted')}</>}
             </div>
           )}
         </div>
@@ -327,10 +329,10 @@ export default function TodayView() {
         {showBothModes && (
           <div className="mode-selector mb-3">
             <button className={`mode-btn ${mode === 'weekend' ? 'active' : ''}`} onClick={() => setMode('weekend')}>
-              Weekend
+              {t('att.weekend')}
             </button>
             <button className={`mode-btn ${mode === 'weekday' ? 'active' : ''}`} onClick={() => setMode('weekday')}>
-              Weekday
+              {t('att.weekday')}
             </button>
           </div>
         )}
@@ -343,7 +345,7 @@ export default function TodayView() {
               className={`day-chip ${sessionDay === day ? 'active' : ''} ${day === todayName ? 'today' : ''}`}
               onClick={() => setSessionDay(day)}
             >
-              {day.slice(0, 3)}
+              {t(`day.${day.toLowerCase()}`).slice(0, 3)}
               {day === todayName && <span className="day-chip-dot" />}
             </button>
           ))}
@@ -354,19 +356,19 @@ export default function TodayView() {
         {isOfflineMode && (
           <div className="offline-mode-badge">
             <CloudOff size={14} />
-            <span>Offline mode — using cached roster</span>
+            <span>{t('att.offlineMode')}</span>
           </div>
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 mb-6" style={{ alignItems: 'center' }}>
           <div className="search-container flex-1 bg-white" style={{ marginBottom: 0, width: '100%' }}>
             <Search size={20} className="text-muted" />
-            <input type="text" placeholder="Search student..." className="search-input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            <input type="text" placeholder={t('att.search')} className="search-input" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
           </div>
           
           {isAdmin ? (
             <select className="form-input" style={{ width: 'auto' }} value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)}>
-              <option value="All">All Grades</option>
+              <option value="All">{t('att.allGrades')}</option>
               <option value="Grade 7">Grade 7</option><option value="Grade 8">Grade 8</option><option value="Grade 9">Grade 9</option>
               <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
             </select>
@@ -378,13 +380,13 @@ export default function TodayView() {
 
           {!isLocked && selectedGrade !== 'All' && filteredStudents.length > 0 && (
             <button className="btn-outline flex items-center gap-2 px-4 whitespace-nowrap w-full sm:w-auto" onClick={handleMarkAllPresent}>
-              <UserCheck size={18} /> All Present
+              <UserCheck size={18} /> {t('att.allPresent')}
             </button>
           )}
 
           {isSubmitted && !isEditing && (
             <button className="btn-outline flex items-center gap-2 px-4 whitespace-nowrap w-full sm:w-auto" onClick={handleEdit} style={{ borderColor: 'rgba(245, 158, 11, 0.3)', color: 'var(--warning)' }}>
-              <Edit3 size={16} /> Edit
+              <Edit3 size={16} /> {t('btn.edit')}
             </button>
           )}
         </div>
@@ -393,18 +395,18 @@ export default function TodayView() {
           <h2 className="section-title flex items-center justify-between px-2">
             <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
               <span style={{ fontSize: '0.92rem' }}>{displayDateStr}</span>
-              {isTodaySession && <span className="text-xs bg-success text-white px-2 py-1 rounded-full font-semibold">Today</span>}
-              {isPastSession && <span className="text-xs bg-warning text-white px-2 py-1 rounded-full font-semibold">Past</span>}
-              {isFutureSession && <span className="text-xs bg-primary text-white px-2 py-1 rounded-full font-semibold">Upcoming</span>}
+              {isTodaySession && <span className="text-xs bg-success text-white px-2 py-1 rounded-full font-semibold">{t('att.today')}</span>}
+              {isPastSession && <span className="text-xs bg-warning text-white px-2 py-1 rounded-full font-semibold">{t('att.past')}</span>}
+              {isFutureSession && <span className="text-xs bg-primary text-white px-2 py-1 rounded-full font-semibold">{t('att.upcoming')}</span>}
             </div>
             <span className="text-sm font-normal text-muted">{filteredStudents.length}</span>
           </h2>
           
           {loading ? (
-            <p className="text-center text-muted mt-8">Loading class roster...</p>
+            <p className="text-center text-muted mt-8">{t('app.loading')}</p>
           ) : filteredStudents.length === 0 ? (
             <div className="card text-center text-muted py-8 glass">
-              No {programType} students found{selectedGrade !== 'All' ? ` in ${selectedGrade}` : ''}.
+              {t('att.noStudents')} {selectedGrade !== 'All' ? `(${selectedGrade})` : ''}
             </div>
           ) : (
             filteredStudents.map((student, index) => {
@@ -424,7 +426,7 @@ export default function TodayView() {
                       onClick={() => handleMark(student.id, 'present')} 
                       className={`action-btn present ${status === 'present' ? 'active' : ''}`}
                       disabled={isLocked}
-                      title="Present"
+                      title={t('att.present')}
                     >
                       <CheckCircle2 size={30} />
                     </button>
@@ -432,7 +434,7 @@ export default function TodayView() {
                       onClick={() => handleMark(student.id, 'permission')} 
                       className={`action-btn permission ${status === 'permission' ? 'active' : ''}`}
                       disabled={isLocked}
-                      title="Permission"
+                      title={t('att.permission')}
                     >
                       <ShieldAlert size={30} />
                     </button>
@@ -440,7 +442,7 @@ export default function TodayView() {
                       onClick={() => handleMark(student.id, 'absent')} 
                       className={`action-btn absent ${status === 'absent' ? 'active' : ''}`}
                       disabled={isLocked}
-                      title="Absent"
+                      title={t('att.absent')}
                     >
                       <XCircle size={30} />
                     </button>
@@ -465,14 +467,13 @@ export default function TodayView() {
               {permissionCount > 0 && <><span className="text-muted">/</span><span className="text-warning font-black">{permissionCount}</span></>}
               <span className="text-muted">/</span>
               <span className="text-danger font-black">{absentCount}</span>
-              <span className="text-muted text-xs ml-1">of {totalFiltered}</span>
             </span>
             {markedCount < totalFiltered && (
-              <span className="att-submit-remaining">{totalFiltered - markedCount} unmarked</span>
+              <span className="att-submit-remaining">{totalFiltered - markedCount} {t('att.unmarked')}</span>
             )}
           </div>
           <button className="att-submit-btn" onClick={handleSubmit} disabled={submitting || markedCount === 0}>
-            {submitting ? <span className="animate-pulse">Saving...</span> : <><Send size={16} /> {isEditing ? 'Save' : 'Submit'}</>}
+            {submitting ? <span className="animate-pulse">{t('att.saving')}</span> : <><Send size={16} /> {isEditing ? t('btn.save') : t('att.submitBtn')}</>}
           </button>
         </div>
       )}

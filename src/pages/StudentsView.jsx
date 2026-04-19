@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { UserPlus, Upload, Link as LinkIcon, X, Trash2, UserCheck, Edit, Search, Filter } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useDialog } from '../context/DialogContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function StudentsView() {
   const { confirm, alert: showAlert } = useDialog();
+  const { t } = useLanguage();
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -233,14 +235,14 @@ export default function StudentsView() {
         <div className="flex gap-4 mb-6" style={{ alignItems: 'center' }}>
           <div className="search-container flex-1 bg-white" style={{ marginBottom: 0, border: '1px solid rgba(0,0,0,0.05)' }}>
             <Search size={18} className="text-muted" />
-            <input type="text" placeholder="Search by name..." className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+            <input type="text" placeholder={t('att.search')} className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
           </div>
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-muted" />
             <select className="form-input" style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.8rem', fontWeight: 700 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="All">All Students</option>
-              <option value="Active">Active Only</option>
-              <option value="Pending">Pending (New)</option>
+              <option value="Active">{t('status.active')}</option>
+              <option value="Pending">{t('status.pending')}</option>
             </select>
           </div>
         </div>

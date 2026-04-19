@@ -4,12 +4,14 @@ import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function SettingsView() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { user, role, assignedGrade, assignedMode, isAdmin } = useAuth();
   const { confirm, alert: showAlert } = useDialog();
+  const { t, language, toggleLanguage } = useLanguage();
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -100,7 +102,7 @@ export default function SettingsView() {
   return (
     <div className="page-container">
       <div className="header-glass glass">
-        <h1 className="page-title">Settings</h1>
+        <h1 className="page-title">{t('set.title')}</h1>
       </div>
       <div className="content">
 
@@ -108,15 +110,15 @@ export default function SettingsView() {
         <div className="card glass mb-4" style={{ borderLeft: '4px solid var(--primary)' }}>
           <h3 className="section-title flex items-center gap-2 mb-4" style={{ color: 'var(--text-secondary)', fontWeight: 800 }}>
             {isAdmin ? <Shield size={18} className="text-primary" /> : <User size={18} className="text-primary" />}
-            Your Access Profile
+            {t('set.accessProfile')}
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
             <div>
-              <p className="text-xs text-muted font-bold uppercase mb-1">Email</p>
+              <p className="text-xs text-muted font-bold uppercase mb-1">{t('set.email')}</p>
               <p className="text-sm font-bold m-0">{user?.email || '—'}</p>
             </div>
             <div>
-              <p className="text-xs text-muted font-bold uppercase mb-1">Role</p>
+              <p className="text-xs text-muted font-bold uppercase mb-1">{t('set.role')}</p>
               <p className="text-sm font-bold m-0" style={{ textTransform: 'capitalize' }}>{role}</p>
             </div>
             <div>
@@ -127,16 +129,28 @@ export default function SettingsView() {
               <p className="text-xs text-muted font-bold uppercase mb-1">Program</p>
               <p className="text-sm font-bold m-0" style={{ textTransform: 'capitalize' }}>{assignedMode}</p>
             </div>
+            <div style={{ gridColumn: '1 / -1', marginTop: '0.5rem', paddingTop: '0.5rem', borderTop: '1px solid var(--border-subtle)' }}>
+               <p className="text-xs text-muted font-bold uppercase mb-2">{t('set.language')}</p>
+               <button 
+                 onClick={toggleLanguage} 
+                 className="btn-outline flex items-center justify-center gap-2 w-full"
+                 style={{ padding: '0.5rem' }}
+               >
+                 <span className={language === 'en' ? 'font-black text-primary' : 'text-muted'}>ENG</span>
+                 <span className="text-muted text-xs">/</span>
+                 <span className={language === 'am' ? 'font-black text-primary' : 'text-muted'}>አማርኛ</span>
+               </button>
+            </div>
           </div>
         </div>
 
         <div className="settings-group card">
-          <h3 className="section-title text-muted mb-4">Data Management</h3>
+          <h3 className="section-title text-muted mb-4">{t('set.dataManagement')}</h3>
           
           <button className="settings-row" onClick={exportData} disabled={loading}>
             <div className="flex items-center gap-3">
               <Download className="text-primary" />
-              <span>Export Students List (CSV)</span>
+              <span>{t('set.export')}</span>
             </div>
             {loading && <Loader2 className="animate-spin" size={18} />}
           </button>
@@ -144,7 +158,7 @@ export default function SettingsView() {
           <button className="settings-row" onClick={handlePromotion} disabled={loading}>
             <div className="flex items-center gap-3">
               <FileText className="text-primary" />
-              <span>Yearly Grade Promotion</span>
+              <span>{t('set.yearlyPromotion')}</span>
             </div>
             {loading && <Loader2 className="animate-spin" size={18} />}
           </button>
@@ -154,7 +168,7 @@ export default function SettingsView() {
           <button className="settings-row text-danger" onClick={handleSignOut}>
             <div className="flex items-center gap-3">
               <LogOut />
-              <span>Sign Out</span>
+              <span>{t('btn.signOut')}</span>
             </div>
           </button>
         </div>

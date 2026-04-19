@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { 
   Users, 
   Calendar, 
@@ -17,6 +18,7 @@ import { format, isSaturday, isSunday, nextSaturday, nextSunday } from 'date-fns
 export default function DashboardView() {
   const navigate = useNavigate();
   const { isAdmin, assignedGrade } = useAuth();
+  const { t } = useLanguage();
   const [stats, setStats] = useState({
     totalStudents: 0,
     avgAttendance: 0,
@@ -119,11 +121,11 @@ export default function DashboardView() {
   return (
     <div className="page-container">
       <div className="header-glass glass mb-8">
-        <h1 className="page-title mb-1">{isAdmin ? 'Executive Dashboard' : 'Teacher Portal'}</h1>
-        <p className="text-muted">
+        <h1 className="page-title">{isAdmin ? t('dash.execDashboard') : t('dash.teacherPortal')}</h1>
+        <p className="text-secondary mt-1 opacity-90">
           {isAdmin 
-            ? 'Institutional overview and global class performance metrics.' 
-            : `Managed portal for ${assignedGrade} Sunday School Operations.`}
+            ? "Institutional overview and global class performance metrics." 
+            : `Managed portal for ${assignedGrade || 'Grade 7'} Sunday School Operations.`}
         </p>
       </div>
 
@@ -137,7 +139,7 @@ export default function DashboardView() {
               </div>
               <div>
                 <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">
-                  {isAdmin ? 'Total Enrollment' : 'Class size'}
+                  {isAdmin ? t('dash.totalEnrollment') : t('dash.classSize')}
                 </p>
                 <h2 className="text-2xl font-black m-0">{stats.totalStudents}</h2>
               </div>
@@ -149,7 +151,7 @@ export default function DashboardView() {
                 <TrendingUp size={24} />
               </div>
               <div>
-                <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Class Participation</p>
+                <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">{t('dash.classParticipation')}</p>
                 <h2 className="text-2xl font-black m-0 text-success">{stats.avgAttendance}%</h2>
               </div>
             </div>
@@ -160,7 +162,7 @@ export default function DashboardView() {
                 <Calendar size={24} />
               </div>
               <div>
-                <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">Weekly Check-ins</p>
+                <p className="text-xs font-bold text-muted uppercase tracking-wider mb-1">{t('dash.weeklyCheckins')}</p>
                 <h2 className="text-2xl font-black m-0">{stats.totalSessions}</h2>
               </div>
             </div>
@@ -171,23 +173,27 @@ export default function DashboardView() {
           
           {/* Main Action Card */}
           <div className="flex flex-col gap-6">
-            <div className="hero-card shadow-2xl" onClick={() => navigate('/attendance')}>
-              <div className="hero-content">
-                <span className="badge">{isAdmin ? 'Executive Control' : 'Immediate Action'}</span>
-                <h2 className="text-3xl font-black mb-2" style={{ color: 'white' }}>Attendance</h2>
-                <p className="mb-6 text-lg" style={{ opacity: 0.9, color: 'rgba(255,255,255,0.9)' }}>Prepare attendance for: <span className="font-bold underline">{getNextWeekend()}</span></p>
-                <button className="hero-btn">
-                  Open Attendance Sheet <ArrowRight size={20} />
-                </button>
+            <div className="card glass">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="section-title flex items-center gap-2 m-0 text-white">
+                  <Calendar size={18} className="text-primary" />
+                  {t('dash.attendanceTitle')}
+                </h3>
+                <span className="text-xs font-semibold py-1 px-3 rounded-full bg-white/10 text-white">
+                  {nextTargetDate}
+                </span>
               </div>
-              <div style={{ position: 'absolute', bottom: '-40px', right: '-40px', width: '240px', height: '240px', background: 'rgba(255,255,255,0.08)', borderRadius: '50%', filter: 'blur(40px)' }}></div>
+              <p className="text-muted text-sm mb-6">{t('dash.prepareAttendance')} {nextTargetDate}.</p>
+              <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => navigate('/attendance')}>
+                {t('dash.openAttendance')} <ArrowRight size={16} />
+              </button>
             </div>
 
             {/* Admin-only Grade Breakdown */}
             {isAdmin && (
               <div className="card glass animate-fade-in">
                 <h3 className="section-title flex items-center gap-2 mb-8" style={{ color: 'var(--text-secondary)', fontWeight: 800 }}>
-                  <TrendingUp size={18} className="text-primary" /> Grade-Level Performance
+                  <TrendingUp size={18} className="text-primary" /> {t('dash.gradePerformance')}
                 </h3>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-x-8 gap-y-6">
                   {gradeStats.map(g => (
@@ -212,12 +218,12 @@ export default function DashboardView() {
             <div className="flex flex-col gap-6 animate-fade-in">
               <div className="card glass border-t-4 border-danger" style={{ height: 'fit-content' }}>
                 <h3 className="section-title flex items-center gap-2 text-danger mb-6" style={{ fontWeight: 800 }}>
-                  <AlertCircle size={18} /> High Priority Risk
+                  <AlertCircle size={18} /> {t('dash.riskTitle')}
                 </h3>
                 {atRisk.length === 0 ? (
                   <div className="text-center py-12">
                     <CheckCircle className="text-success m-auto mb-4" size={48} />
-                    <p className="text-sm text-muted font-bold">No high-risk students found.</p>
+                    <p className="text-sm text-muted font-bold">{t('dash.noRisk')}</p>
                   </div>
                 ) : (
                   <div className="flex flex-col">

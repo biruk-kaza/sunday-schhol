@@ -2,6 +2,7 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DialogProvider } from './context/DialogContext';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 import Sidebar from './components/Sidebar';
 import BottomNav from './components/BottomNav';
 import MobileHeader from './components/MobileHeader';
@@ -94,11 +95,13 @@ function Layout() {
 function App() {
   return (
     <Router>
-      <AuthProvider>
-        <DialogProvider>
-          <Layout />
-        </DialogProvider>
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <DialogProvider>
+            <Layout />
+          </DialogProvider>
+        </AuthProvider>
+      </LanguageProvider>
     </Router>
   );
 }

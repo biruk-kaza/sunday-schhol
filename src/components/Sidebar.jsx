@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 import { supabase } from '../lib/supabase';
 import { 
   LayoutDashboard, 
@@ -14,6 +15,7 @@ import {
 
 export default function Sidebar() {
   const { isAdmin } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
 
   const handleLogout = async () => {
@@ -25,37 +27,37 @@ export default function Sidebar() {
     <aside className="sidebar desktop-only glass">
       <div className="sidebar-header flex flex-col items-center">
         <img src="/sunday_school_pro_logo.png" alt="Logo" className="brand-logo" />
-        <h2 className="brand-title">Sunday School Pro</h2>
+        <h2 className="brand-title">{t('app.title')}</h2>
       </div>
       <nav className="sidebar-nav">
         <NavLink to="/" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`} end>
           <LayoutDashboard size={20} />
-          <span>Dashboard</span>
+          <span>{t('nav.dashboard')}</span>
         </NavLink>
         
         <NavLink to="/attendance" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
           <CalendarCheck2 size={20} />
-          <span>Attendance</span>
+          <span>{t('nav.attendance')}</span>
         </NavLink>
 
         {isAdmin && (
           <>
             <NavLink to="/action" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
               <AlertCircle size={20} />
-              <span>Risk Watch</span>
+              <span>{t('nav.riskWatch')}</span>
             </NavLink>
             <NavLink to="/students" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
               <Users size={20} />
-              <span>Students</span>
+              <span>{t('nav.students')}</span>
             </NavLink>
             <NavLink to="/history" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
               <History size={20} />
-              <span>Analytics</span>
+              <span>{t('nav.analytics')}</span>
             </NavLink>
             <div className="sidebar-divider"></div>
             <NavLink to="/settings" className={({ isActive }) => `sidebar-item ${isActive ? 'active' : ''}`}>
               <Settings size={20} />
-              <span>Settings</span>
+              <span>{t('nav.settings')}</span>
             </NavLink>
           </>
         )}
@@ -69,7 +71,7 @@ export default function Sidebar() {
           id="desktop-sign-out-btn"
         >
           <LogOut size={20} />
-          <span>Sign Out</span>
+          <span>{t('btn.signOut')}</span>
         </button>
       </div>
     </aside>
