@@ -164,7 +164,11 @@ export default function TodayView() {
         logMap[record.student_id] = record.status || (record.is_present ? 'present' : 'absent');
       });
 
-      if (Object.keys(logMap).length > 0) {
+      // Only mark as "submitted" if at least some of THIS teacher's students have records
+      const studentIds = new Set((studentsData || []).map(s => s.id));
+      const myRecordCount = Object.keys(logMap).filter(id => studentIds.has(id)).length;
+
+      if (myRecordCount > 0) {
         setSubmittedLog(logMap);
         setDraftLog(logMap);
         setIsSubmitted(true);
