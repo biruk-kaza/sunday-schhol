@@ -23,25 +23,26 @@ export default function TodayView() {
   const { isAdmin, assignedGrade, assignedMode, canSeeWeekend, canSeeWeekday } = useAuth();
   const { confirm, alert: showAlert } = useDialog();
   
-  // Determine default mode based on today and user access
   const todayName = getTodayName();
-  const getDefaultMode = () => {
+
+  const getCorrectMode = () => {
     if (isWeekdayName(todayName) && canSeeWeekday) return 'weekday';
     if (!isWeekdayName(todayName) && canSeeWeekend) return 'weekend';
+    if (canSeeWeekend) return 'weekend';
     if (canSeeWeekday) return 'weekday';
     return 'weekend';
   };
-  const getDefaultDay = (mode) => {
-    if (mode === 'weekday') {
+  const getCorrectDay = (m) => {
+    if (m === 'weekday') {
       return isWeekdayName(todayName) ? todayName : 'Monday';
     }
     return WEEKEND_DAYS.includes(todayName) ? todayName : 'Sunday';
   };
 
-  const [mode, setMode] = useState(getDefaultMode); // 'weekend' or 'weekday'
-  const [sessionDay, setSessionDay] = useState(() => getDefaultDay(getDefaultMode()));
+  const [mode, setMode] = useState('weekend');
+  const [sessionDay, setSessionDay] = useState('Sunday');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedGrade, setSelectedGrade] = useState(isAdmin ? 'All' : (assignedGrade || 'Grade 7'));
+  const [selectedGrade, setSelectedGrade] = useState('All');
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
@@ -53,16 +54,16 @@ export default function TodayView() {
   const [isEditing, setIsEditing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Sync mode and grade when auth data changes (critical — runs after auth loads)
   useEffect(() => {
-    if (!isAdmin && assignedGrade) {
-      setSelectedGrade(assignedGrade);
-    }
-  }, [isAdmin, assignedGrade]);
+    const correctMode = getCorrectMode();
+    setMode(correctMode);
+    setSessionDay(getCorrectDay(correctMode));
+  }, [canSeeWeekend, canSeeWeekday]);
 
-  // When mode changes, pick a reasonable default day
   useEffect(() => {
-    setSessionDay(getDefaultDay(mode));
-  }, [mode]);
+    setSelectedGrade(isAdmin ? 'All' : (assignedGrade || 'Grade 7'));
+  }, [isAdmin, assignedGrade]);
 
   const getSessionDate = useCallback((day) => {
     const today = new Date();

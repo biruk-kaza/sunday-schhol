@@ -14,6 +14,16 @@ export const AuthProvider = ({ children }) => {
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
+
+      // Force refresh to get latest metadata from DB
+      if (session) {
+        supabase.auth.refreshSession().then(({ data }) => {
+          if (data?.session) {
+            setSession(data.session);
+            setUser(data.session.user);
+          }
+        });
+      }
     }).catch(() => {
       setLoading(false);
     });
@@ -46,7 +56,6 @@ export const AuthProvider = ({ children }) => {
     canSeeWeekday: isAdmin || assignedMode === 'weekday' || assignedMode === 'both',
   };
 
-  // ALWAYS render children — let routes handle loading state
   return (
     <AuthContext.Provider value={value}>
       {children}
