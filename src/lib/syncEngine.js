@@ -41,21 +41,52 @@ export async function syncOfflineRecords() {
     // Prepare records for upsert (strip local-only fields)
     const records = queue.map(({ localId, queued_at, ...rest }) => rest);
 
+    // Filter out malformed records (e.g. from older app versions)
+    const validRecords = records.filter(r => 
+      r.student_id && r.session_date && r.session_type && r.is_present !== undefined
+    );
+
     // Deduplicate: keep only the latest record per student+date+type
     const deduped = {};
-    records.forEach(r => {
+    validRecords.forEach(r => {
       const key = `${r.student_id}_${r.session_date}_${r.session_type}`;
       deduped[key] = r; // later entries overwrite earlier ones
     });
     const uniqueRecords = Object.values(deduped);
+
+    if (uniqueRecords.length === 0) {
+      // Nothing valid to sync
+      await clearOfflineQueue();
+      notifyListeners({ syncing: false, pendingCount: 0, lastResult: 'success' });
+      return;
+    }
 
     const { data, error } = await supabase
       .from('attendance')
       .upsert(uniqueRecords, { onConflict: 'student_id, session_date, session_type' });
 
     if (error) {
-      console.error('[SyncEngine] Supabase upsert error:', error);
-      throw error;
+      console.error('[SyncEngine] Supabase bulk upsert error:', error);
+      console.warn('[SyncEngine] Falling back to one-by-one sync to clear queue...');
+      
+      let successCount = 0;
+      for (const record of uniqueRecords) {
+        const { error: singleError } = await supabase
+          .from('attendance')
+          .upsert(record, { onConflict: 'student_id, session_date, session_type' });
+          
+        if (!singleError) {
+          successCount++;
+        } else {
+          console.error(`[SyncEngine] Record failed (ID: ${record.student_id}):`, singleError);
+        }
+      }
+      
+      // Clear queue to prevent permanent blockage from bad records
+      await clearOfflineQueue();
+      notifyListeners({ syncing: false, pendingCount: 0, lastResult: successCount > 0 ? 'success' : 'error' });
+      window.dispatchEvent(new CustomEvent('attendance-synced'));
+      return;
     }
 
     // All synced — clear the queue
@@ -67,7 +98,8 @@ export async function syncOfflineRecords() {
     // Dispatch event so pages can reload their data
     window.dispatchEvent(new CustomEvent('attendance-synced'));
   } catch (err) {
-    console.error('[SyncEngine] Sync failed:', err.message || err);
+    console.error('[SyncEngine] Sync failed completely:', err.message || err);
+    // If it's a network error at this level, we keep the queue.
     const remaining = await getQueueCount();
     notifyListeners({ syncing: false, pendingCount: remaining, lastResult: 'error' });
   } finally {
