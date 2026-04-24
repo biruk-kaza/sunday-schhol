@@ -13,11 +13,11 @@ import {
   ShieldCheck
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { format, isSaturday, isSunday, nextSaturday, nextSunday } from 'date-fns';
+import { format, isSaturday, isSunday, nextSaturday, nextSunday, addDays } from 'date-fns';
 
 export default function DashboardView() {
   const navigate = useNavigate();
-  const { isAdmin, assignedGrade } = useAuth();
+  const { isAdmin, assignedGrade, canSeeWeekend, canSeeWeekday } = useAuth();
   const { t } = useLanguage();
   const [stats, setStats] = useState({
     totalStudents: 0,
@@ -28,9 +28,19 @@ export default function DashboardView() {
   const [gradeStats, setGradeStats] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Calculate Next Weekend for the CTA
-  const getNextWeekend = () => {
+  // Calculate Next Session for the CTA
+  const getNextSessionText = () => {
     const today = new Date();
+    
+    // If they only see weekdays, show the next weekday
+    if (!canSeeWeekend && canSeeWeekday) {
+      let nextDay = today;
+      if (isSaturday(today)) nextDay = addDays(today, 2); // Next Monday
+      else if (isSunday(today)) nextDay = addDays(today, 1); // Next Monday
+      return format(nextDay, 'EEEE, MMM do');
+    }
+    
+    // Default to weekend
     const sat = isSaturday(today) ? today : nextSaturday(today);
     const sun = isSunday(today) ? today : nextSunday(today);
     return `${format(sat, 'MMM do')} & ${format(sun, 'MMM do')}`;
@@ -180,10 +190,10 @@ export default function DashboardView() {
                   {t('dash.attendanceTitle')}
                 </h3>
                 <span className="text-xs font-semibold py-1 px-3 rounded-full bg-white/10 text-white">
-                  {getNextWeekend()}
+                  {getNextSessionText()}
                 </span>
               </div>
-              <p className="text-muted text-sm mb-6">{t('dash.prepareAttendance')} {getNextWeekend()}.</p>
+              <p className="text-muted text-sm mb-6">{t('dash.prepareAttendance')} {getNextSessionText()}.</p>
               <button className="btn-primary w-full flex items-center justify-center gap-2" onClick={() => navigate('/attendance')}>
                 {t('dash.openAttendance')} <ArrowRight size={16} />
               </button>
