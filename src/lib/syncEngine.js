@@ -71,14 +71,22 @@ export async function syncOfflineRecords() {
       
       let successCount = 0;
       for (const record of uniqueRecords) {
-        const { error: singleError } = await supabase
-          .from('attendance')
-          .upsert(record, { onConflict: 'student_id, session_date, session_type' });
-          
-        if (!singleError) {
-          successCount++;
-        } else {
-          console.error(`[SyncEngine] Record failed (ID: ${record.student_id}):`, singleError);
+        try {
+          const { error: singleError } = await supabase
+            .from('attendance')
+            .upsert(record, { onConflict: 'student_id, session_date, session_type' });
+            
+          if (!singleError) {
+            successCount++;
+          } else {
+            console.error(`[SyncEngine] Record failed (ID: ${record.student_id}):`, singleError);
+            // Dispatch event for UI to show what failed
+            window.dispatchEvent(new CustomEvent('sync-error', { 
+              detail: `Record error: ${singleError.message}` 
+            }));
+          }
+        } catch (e) {
+          console.error(`[SyncEngine] Exception on record (ID: ${record.student_id}):`, e);
         }
       }
       
@@ -99,6 +107,9 @@ export async function syncOfflineRecords() {
     window.dispatchEvent(new CustomEvent('attendance-synced'));
   } catch (err) {
     console.error('[SyncEngine] Sync failed completely:', err.message || err);
+    window.dispatchEvent(new CustomEvent('sync-error', { 
+      detail: `Sync exception: ${err.message || 'Unknown error'}` 
+    }));
     // If it's a network error at this level, we keep the queue.
     const remaining = await getQueueCount();
     notifyListeners({ syncing: false, pendingCount: remaining, lastResult: 'error' });

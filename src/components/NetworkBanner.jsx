@@ -7,6 +7,8 @@ export default function NetworkBanner() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [visible, setVisible] = useState(false);
 
+  const [errorMessage, setErrorMessage] = useState('');
+
   useEffect(() => {
     if (!isOnline || pendingCount > 0 || syncing) {
       setVisible(true);
@@ -14,15 +16,29 @@ export default function NetworkBanner() {
     } else if (lastResult === 'success') {
       setShowSuccess(true);
       setVisible(true);
+      setErrorMessage('');
       const timer = setTimeout(() => {
         setVisible(false);
         setShowSuccess(false);
       }, 3000);
       return () => clearTimeout(timer);
     } else {
-      setVisible(false);
+      // If it's empty and not online/syncing
+      if (!errorMessage) {
+         setVisible(false);
+      }
     }
-  }, [isOnline, syncing, pendingCount, lastResult]);
+  }, [isOnline, syncing, pendingCount, lastResult, errorMessage]);
+
+  useEffect(() => {
+    const handleError = (e) => {
+      setErrorMessage(e.detail);
+      setVisible(true);
+      setTimeout(() => setErrorMessage(''), 5000);
+    };
+    window.addEventListener('sync-error', handleError);
+    return () => window.removeEventListener('sync-error', handleError);
+  }, []);
 
   if (!visible) return null;
 
@@ -46,6 +62,20 @@ export default function NetworkBanner() {
           <RefreshCw size={16} className="network-banner__icon network-banner__spin" />
           <span className="network-banner__text">
             Syncing {pendingCount} record{pendingCount !== 1 ? 's' : ''}...
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (errorMessage) {
+    return (
+      <div className="network-banner network-banner--offline" id="network-status-banner">
+        <div className="network-banner__inner">
+          <CloudOff size={16} className="network-banner__icon" style={{ color: '#ef4444' }} />
+          <span className="network-banner__text" style={{ color: '#ef4444', fontWeight: 'bold' }}>
+            {errorMessage}
           </span>
         </div>
       </div>
