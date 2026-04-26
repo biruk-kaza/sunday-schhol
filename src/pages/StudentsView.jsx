@@ -22,6 +22,12 @@ export default function StudentsView() {
   
   const fileInputRef = useRef(null);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // Batch & Import
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [importTargetGrade, setImportTargetGrade] = useState('Grade 7');
+  const [batchActionType, setBatchActionType] = useState('grade');
+  const [batchActionValue, setBatchActionValue] = useState('Grade 7');
 
   useEffect(() => {
     fetchStudents();
@@ -156,9 +162,8 @@ export default function StudentsView() {
             const rawGrade = row[2] || 'Grade 7';
             const phone = row[3] || 'N/A';
             
-            // Strictly enforce Grade 7-12 mapping even in CSV
-            const validGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-            const finalGrade = validGrades.includes(rawGrade) ? rawGrade : 'Grade 7';
+            // Use the globally selected import target grade, ignore what is in CSV
+            const finalGrade = importTargetGrade;
 
             return {
               first_name: firstName,
@@ -193,6 +198,71 @@ export default function StudentsView() {
     return matchesSearch && matchesStatus;
   });
 
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allFilteredIds = filteredStudents.map(s => s.id);
+      setSelectedIds(new Set(allFilteredIds));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleSelectRow = (id) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+  };
+
+  const handleBatchUpdate = async () => {
+    if (selectedIds.size === 0) return;
+    const idsArray = Array.from(selectedIds);
+    try {
+      setLoading(true);
+      const { error } = await supabase
+        .from('students')
+        .update({ [batchActionType]: batchActionValue })
+        .in('id', idsArray);
+
+      if (error) throw error;
+      
+      setStudents(students.map(s => {
+        if (selectedIds.has(s.id)) return { ...s, [batchActionType]: batchActionValue };
+        return s;
+      }));
+      showAlert(`Successfully updated ${selectedIds.size} students.`, { title: 'Success', variant: 'success' });
+      setSelectedIds(new Set());
+    } catch (error) {
+      showAlert('Batch update failed: ' + error.message, { title: 'Error', variant: 'danger' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+    const ok = await confirm(`Are you sure you want to deactivate ${selectedIds.size} selected students?`, { title: 'Deactivate Students', confirmText: 'Deactivate', variant: 'danger' });
+    if (!ok) return;
+
+    const idsArray = Array.from(selectedIds);
+    try {
+      setLoading(true);
+      const { error } = await supabase.from('students').update({ is_active: false }).in('id', idsArray);
+      if (error) throw error;
+      
+      setStudents(students.filter(s => !selectedIds.has(s.id)));
+      showAlert(`Successfully deactivated ${selectedIds.size} students.`, { title: 'Success', variant: 'success' });
+      setSelectedIds(new Set());
+    } catch (error) {
+      showAlert('Batch delete failed: ' + error.message, { title: 'Error', variant: 'danger' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="page-container">
       <div className="header-glass glass">
@@ -208,9 +278,23 @@ export default function StudentsView() {
             <h3 className="section-title mt-4" style={{ fontSize: '1rem', fontWeight: 800 }}>Bulk Import (CSV)</h3>
             <p className="text-muted text-xs mb-4">Fastest way to add existing students.</p>
             <input type="file" accept=".csv" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
-            <button className="btn-primary w-full" disabled={isUploading} onClick={() => fileInputRef.current.click()}>
-              {isUploading ? 'Importing...' : 'Upload CSV'}
-            </button>
+            <div className="flex flex-col gap-2 w-full">
+              <select 
+                className="form-input text-sm py-2" 
+                value={importTargetGrade} 
+                onChange={e => setImportTargetGrade(e.target.value)}
+              >
+                <option value="Grade 7">Import as Grade 7</option>
+                <option value="Grade 8">Import as Grade 8</option>
+                <option value="Grade 9">Import as Grade 9</option>
+                <option value="Grade 10">Import as Grade 10</option>
+                <option value="Grade 11">Import as Grade 11</option>
+                <option value="Grade 12">Import as Grade 12</option>
+              </select>
+              <button className="btn-primary w-full" disabled={isUploading} onClick={() => fileInputRef.current.click()}>
+                {isUploading ? 'Importing...' : 'Upload CSV'}
+              </button>
+            </div>
           </div>
 
           <div className="card text-center glass info-box-compact">
@@ -249,16 +333,79 @@ export default function StudentsView() {
 
         {/* Directory Table */}
         <div className="card table-card glass p-0 overflow-hidden">
-          <div className="p-6 border-bottom border-gray-50 flex justify-between items-center">
-            <h3 className="section-title m-0" style={{ fontWeight: 800 }}>Student Directory</h3>
-            <span className="text-xs font-black bg-primary text-white px-3 py-1.5 rounded-full uppercase tracking-tighter">{filteredStudents.length} Students Listed</span>
+          <div className="p-6 border-bottom border-gray-50 flex flex-col gap-4">
+            <div className="flex justify-between items-center">
+              <h3 className="section-title m-0" style={{ fontWeight: 800 }}>Student Directory</h3>
+              <span className="text-xs font-black bg-primary text-white px-3 py-1.5 rounded-full uppercase tracking-tighter">{filteredStudents.length} Students Listed</span>
+            </div>
+            
+            {/* Batch Actions Toolbar */}
+            {selectedIds.size > 0 && (
+              <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 flex flex-wrap items-center justify-between gap-4 animate-in fade-in slide-in-from-top-4">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-primary text-sm px-2">
+                    {selectedIds.size} Selected
+                  </span>
+                  <div className="h-6 w-px bg-primary/20 mx-2"></div>
+                  <select 
+                    className="form-input py-1.5 text-sm w-auto" 
+                    style={{ minWidth: '120px' }}
+                    value={batchActionType} 
+                    onChange={e => {
+                      setBatchActionType(e.target.value);
+                      setBatchActionValue(e.target.value === 'grade' ? 'Grade 7' : (e.target.value === 'program_type' ? 'weekend' : 'Active'));
+                    }}
+                  >
+                    <option value="grade">Change Grade</option>
+                    <option value="program_type">Change Program</option>
+                    <option value="enrollment_status">Change Status</option>
+                  </select>
+                  
+                  {batchActionType === 'grade' && (
+                    <select className="form-input py-1.5 text-sm w-auto" value={batchActionValue} onChange={e => setBatchActionValue(e.target.value)}>
+                      <option value="Grade 7">Grade 7</option>
+                      <option value="Grade 8">Grade 8</option>
+                      <option value="Grade 9">Grade 9</option>
+                      <option value="Grade 10">Grade 10</option>
+                      <option value="Grade 11">Grade 11</option>
+                      <option value="Grade 12">Grade 12</option>
+                    </select>
+                  )}
+                  {batchActionType === 'program_type' && (
+                    <select className="form-input py-1.5 text-sm w-auto" value={batchActionValue} onChange={e => setBatchActionValue(e.target.value)}>
+                      <option value="weekend">Weekend</option>
+                      <option value="weekday">Weekday</option>
+                    </select>
+                  )}
+                  {batchActionType === 'enrollment_status' && (
+                    <select className="form-input py-1.5 text-sm w-auto" value={batchActionValue} onChange={e => setBatchActionValue(e.target.value)}>
+                      <option value="Active">Active</option>
+                      <option value="Pending">Pending</option>
+                    </select>
+                  )}
+                  
+                  <button className="btn-primary py-1.5 text-sm px-4" onClick={handleBatchUpdate}>Apply</button>
+                </div>
+                <button className="btn-danger py-1.5 text-sm px-4 flex items-center gap-2" onClick={handleBatchDelete}>
+                  <Trash2 size={14} /> Remove Selected
+                </button>
+              </div>
+            )}
           </div>
           
           <div className="table-responsive">
             <table className="student-table w-full">
               <thead>
                 <tr>
-                  <th style={{ padding: '1rem 1.5rem' }}>Full Name</th>
+                  <th style={{ width: '40px', paddingLeft: '1.5rem' }}>
+                    <input 
+                      type="checkbox" 
+                      className="rounded border-gray-300 text-primary focus:ring-primary"
+                      checked={filteredStudents.length > 0 && selectedIds.size === filteredStudents.length}
+                      onChange={handleSelectAll}
+                    />
+                  </th>
+                  <th style={{ padding: '1rem 1rem' }}>Full Name</th>
                   <th>Grade</th>
                   <th>Program</th>
                   <th>Parent Phone</th>
@@ -268,13 +415,21 @@ export default function StudentsView() {
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="6" className="text-center text-muted py-12">Fetching records...</td></tr>
+                  <tr><td colSpan="7" className="text-center text-muted py-12">Fetching records...</td></tr>
                 ) : filteredStudents.length === 0 ? (
-                  <tr><td colSpan="6" className="text-center text-muted py-12">No matching students found in the directory.</td></tr>
+                  <tr><td colSpan="7" className="text-center text-muted py-12">No matching students found in the directory.</td></tr>
                 ) : (
                   filteredStudents.map(s => (
-                    <tr key={s.id}>
+                    <tr key={s.id} className={selectedIds.has(s.id) ? 'bg-primary/5' : ''}>
                       <td style={{ paddingLeft: '1.5rem' }}>
+                        <input 
+                          type="checkbox" 
+                          className="rounded border-gray-300 text-primary focus:ring-primary"
+                          checked={selectedIds.has(s.id)}
+                          onChange={() => handleSelectRow(s.id)}
+                        />
+                      </td>
+                      <td style={{ paddingLeft: '1rem' }}>
                         <p className="font-black m-0">{s.first_name} {s.last_name}</p>
                       </td>
                       <td>
