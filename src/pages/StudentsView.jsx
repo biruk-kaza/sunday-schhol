@@ -11,6 +11,7 @@ export default function StudentsView() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [gradeFilter, setGradeFilter] = useState('All');
   
   // Modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -25,7 +26,8 @@ export default function StudentsView() {
   
   // Batch & Import
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [importTargetGrade, setImportTargetGrade] = useState('Grade 7');
+  const [lastSelectedIdx, setLastSelectedIdx] = useState(null);
+  const [importTargetGrade, setImportTargetGrade] = useState('Auto');
   const [batchActionType, setBatchActionType] = useState('grade');
   const [batchActionValue, setBatchActionValue] = useState('Grade 7');
 
@@ -162,8 +164,12 @@ export default function StudentsView() {
             const rawGrade = row[2] || 'Grade 7';
             const phone = row[3] || 'N/A';
             
-            // Use the globally selected import target grade, ignore what is in CSV
-            const finalGrade = importTargetGrade;
+            // Use the globally selected import target grade, or read from CSV if Auto
+            let finalGrade = importTargetGrade;
+            if (importTargetGrade === 'Auto') {
+              const validGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+              finalGrade = validGrades.includes(rawGrade) ? rawGrade : 'Grade 7';
+            }
 
             return {
               first_name: firstName,
@@ -195,7 +201,8 @@ export default function StudentsView() {
   const filteredStudents = students.filter(s => {
     const matchesSearch = `${s.first_name} ${s.last_name}`.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesStatus = statusFilter === 'All' || s.enrollment_status === statusFilter;
-    return matchesSearch && matchesStatus;
+    const matchesGrade = gradeFilter === 'All' || s.grade === gradeFilter;
+    return matchesSearch && matchesStatus && matchesGrade;
   });
 
   const handleSelectAll = (e) => {
@@ -207,13 +214,26 @@ export default function StudentsView() {
     }
   };
 
-  const handleSelectRow = (id) => {
+  const handleSelectRow = (id, index, e) => {
     const newSelected = new Set(selectedIds);
-    if (newSelected.has(id)) {
-      newSelected.delete(id);
+    
+    // Check e is defined just in case native onChange vs React onChange
+    if (e && e.nativeEvent && e.nativeEvent.shiftKey && lastSelectedIdx !== null) {
+      const start = Math.min(lastSelectedIdx, index);
+      const end = Math.max(lastSelectedIdx, index);
+      
+      for (let i = start; i <= end; i++) {
+        newSelected.add(filteredStudents[i].id);
+      }
     } else {
-      newSelected.add(id);
+      if (newSelected.has(id)) {
+        newSelected.delete(id);
+      } else {
+        newSelected.add(id);
+      }
+      setLastSelectedIdx(index);
     }
+    
     setSelectedIds(newSelected);
   };
 
@@ -284,6 +304,7 @@ export default function StudentsView() {
                 value={importTargetGrade} 
                 onChange={e => setImportTargetGrade(e.target.value)}
               >
+                <option value="Auto">Read from CSV (Auto)</option>
                 <option value="Grade 7">Import as Grade 7</option>
                 <option value="Grade 8">Import as Grade 8</option>
                 <option value="Grade 9">Import as Grade 9</option>
@@ -323,8 +344,17 @@ export default function StudentsView() {
           </div>
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-muted" />
+            <select className="form-input" style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.8rem', fontWeight: 700 }} value={gradeFilter} onChange={e => setGradeFilter(e.target.value)}>
+              <option value="All">All Grades</option>
+              <option value="Grade 7">Grade 7</option>
+              <option value="Grade 8">Grade 8</option>
+              <option value="Grade 9">Grade 9</option>
+              <option value="Grade 10">Grade 10</option>
+              <option value="Grade 11">Grade 11</option>
+              <option value="Grade 12">Grade 12</option>
+            </select>
             <select className="form-input" style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.8rem', fontWeight: 700 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-              <option value="All">All Students</option>
+              <option value="All">All Statuses</option>
               <option value="Active">{t('status.active')}</option>
               <option value="Pending">{t('status.pending')}</option>
             </select>
@@ -419,14 +449,14 @@ export default function StudentsView() {
                 ) : filteredStudents.length === 0 ? (
                   <tr><td colSpan="7" className="text-center text-muted py-12">No matching students found in the directory.</td></tr>
                 ) : (
-                  filteredStudents.map(s => (
+                  filteredStudents.map((s, index) => (
                     <tr key={s.id} className={selectedIds.has(s.id) ? 'bg-primary/5' : ''}>
                       <td style={{ paddingLeft: '1.5rem' }}>
                         <input 
                           type="checkbox" 
                           className="rounded border-gray-300 text-primary focus:ring-primary"
                           checked={selectedIds.has(s.id)}
-                          onChange={() => handleSelectRow(s.id)}
+                          onChange={(e) => handleSelectRow(s.id, index, e)}
                         />
                       </td>
                       <td style={{ paddingLeft: '1rem' }}>
