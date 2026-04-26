@@ -3,6 +3,7 @@ import { UserPlus, Upload, Link as LinkIcon, X, Trash2, UserCheck, Edit, Search,
 import { supabase } from '../lib/supabase';
 import { useDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
+import Papa from 'papaparse';
 
 export default function StudentsView() {
   const { confirm, alert: showAlert } = useDialog();
@@ -143,59 +144,93 @@ export default function StudentsView() {
     if (!file) return;
 
     setIsUploading(true);
-    const reader = new FileReader();
-    
-    reader.onload = async (event) => {
-      try {
-        const text = event.target.result;
-        // Robust split handles Windows (\r\n) and Unix (\n) line endings
-        const rows = text.split(/\r?\n/).filter(line => line.trim() !== '');
-        
-        const dataRows = rows.slice(1).map(row => {
-          // Naive CSV split, but sanitized for basic school roster needs
-          return row.split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
-        });
-
-        const newRecords = dataRows
-          .filter(row => row.length >= 2 && row[0] !== '') // At least first/last name
-          .map(row => {
-            const firstName = row[0] || 'Unknown';
-            const lastName = row[1] || '';
-            const rawGrade = row[2] || 'Grade 7';
-            const phone = row[3] || 'N/A';
-            
-            // Use the globally selected import target grade, or read from CSV if Auto
-            let finalGrade = importTargetGrade;
-            if (importTargetGrade === 'Auto') {
-              const validGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-              finalGrade = validGrades.includes(rawGrade) ? rawGrade : 'Grade 7';
+    Papa.parse(file, {
+      header: false, // assuming raw rows to support mixed CSVs
+      skipEmptyLines: true,
+      complete: async (results) => {
+        try {
+          const rows = results.data;
+          
+          // Smart Header Skip: if first row looks like a header, skip it
+          let startIndex = 0;
+          if (rows.length > 0) {
+            const firstRowStr = rows[0].join(' ').toLowerCase();
+            if (firstRowStr.includes('name') || firstRowStr.includes('first') || firstRowStr.includes('grade')) {
+              startIndex = 1;
             }
+          }
 
-            return {
-              first_name: firstName,
-              last_name: lastName,
-              grade: finalGrade,
-              parent_phone: phone,
-              enrollment_status: 'Active',
-              is_active: true
-            };
+          const newRecords = rows.slice(startIndex)
+            .filter(row => row.length >= 1 && row[0]?.trim() !== '') // Must have a first name
+            .map(row => {
+              const firstName = row[0]?.trim() || 'Unknown';
+              const lastName = row[1]?.trim() || '';
+              const rawGrade = row[2]?.trim() || 'Grade 7';
+              const phone = row[3]?.trim() || 'N/A';
+              
+              // Use the globally selected import target grade, or read from CSV if Auto
+              let finalGrade = importTargetGrade;
+              if (importTargetGrade === 'Auto') {
+                const validGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+                finalGrade = validGrades.includes(rawGrade) ? rawGrade : 'Grade 7';
+              }
+
+              return {
+                first_name: firstName,
+                last_name: lastName,
+                grade: finalGrade,
+                parent_phone: phone,
+                enrollment_status: 'Active',
+                is_active: true
+              };
+            });
+
+          if (newRecords.length === 0) throw new Error("No valid student data found in the CSV file.");
+
+          // --- ROBUST BATCH CHUNKING ---
+          // Supabase limits payload size. Slicing into 200-record chunks ensures stability.
+          const chunkSize = 200; 
+          let successfulInserts = 0;
+          let failedChunks = 0;
+
+          for (let i = 0; i < newRecords.length; i += chunkSize) {
+            const chunk = newRecords.slice(i, i + chunkSize);
+            const { error } = await supabase.from('students').insert(chunk);
+            if (error) {
+              console.error(`Error inserting chunk ${i/chunkSize}:`, error);
+              failedChunks++;
+            } else {
+              successfulInserts += chunk.length;
+            }
+          }
+
+          if (failedChunks > 0 && successfulInserts === 0) {
+             throw new Error("All records failed to import. Please check if columns match or unique constraints are violated.");
+          }
+
+          const message = failedChunks > 0 
+            ? `Import partially successful. Added ${successfulInserts} students, but some chunks failed. Check the console for details.`
+            : `Successfully imported ${successfulInserts} students into the directory.`;
+
+          await showAlert(message, { 
+            title: failedChunks > 0 ? 'Completed With Errors' : 'Import Complete', 
+            variant: failedChunks > 0 ? 'warning' : 'success' 
           });
-
-        if (newRecords.length === 0) throw new Error("No valid student data found in the CSV file.");
-
-        const { error } = await supabase.from('students').insert(newRecords);
-        if (error) throw error;
-
-        await showAlert(`Successfully imported ${newRecords.length} students into the directory.`, { title: 'Import Complete', variant: 'success' });
-        fetchStudents();
-      } catch (err) {
-        showAlert('Bulk Import failed: ' + err.message, { title: 'Import Error', variant: 'danger' });
-      } finally {
+          
+          fetchStudents();
+        } catch (err) {
+          showAlert('Bulk Import failed: ' + err.message, { title: 'Import Error', variant: 'danger' });
+        } finally {
+          setIsUploading(false);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      },
+      error: (error) => {
         setIsUploading(false);
+        showAlert('Failed to parse CSV file: ' + error.message, { title: 'File Error', variant: 'danger' });
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
-    };
-    reader.readAsText(file);
+    });
   };
 
   const filteredStudents = students.filter(s => {
