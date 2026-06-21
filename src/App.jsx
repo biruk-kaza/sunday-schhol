@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { DialogProvider } from './context/DialogContext';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
@@ -94,15 +95,17 @@ function Layout() {
 
 function App() {
   return (
-    <Router>
-      <LanguageProvider>
-        <AuthProvider>
-          <DialogProvider>
-            <Layout />
-          </DialogProvider>
-        </AuthProvider>
-      </LanguageProvider>
-    </Router>
+    <ErrorBoundary>
+      <Router>
+        <LanguageProvider>
+          <AuthProvider>
+            <DialogProvider>
+              <Layout />
+            </DialogProvider>
+          </AuthProvider>
+        </LanguageProvider>
+      </Router>
+    </ErrorBoundary>
   );
 }
 

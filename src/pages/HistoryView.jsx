@@ -8,11 +8,13 @@ import {
   Download,
   CheckCircle2,
   XCircle,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ShieldAlert
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../context/LanguageContext';
 import { format, parseISO } from 'date-fns';
+import { studentName } from '../lib/classes';
 
 export default function HistoryView() {
   const { t } = useLanguage();
@@ -28,13 +30,13 @@ export default function HistoryView() {
   async function fetchHistory() {
     try {
       setLoading(true);
-      // Fetch attendance JOIN students to get Names and Grade
       const { data, error } = await supabase
         .from('attendance')
         .select(`
-          session_date, 
-          session_type, 
-          is_present, 
+          session_date,
+          session_type,
+          is_present,
+          status,
           students ( first_name, last_name, grade )
         `)
         .order('session_date', { ascending: false });
@@ -56,23 +58,24 @@ export default function HistoryView() {
         
         const grade = row.students?.grade || 'Unassigned';
         if (!grouped[key].gradeData[grade]) {
-          grouped[key].gradeData[grade] = { 
-            total: 0, 
-            present: 0,
-            students: [] 
-          };
+          grouped[key].gradeData[grade] = { total: 0, present: 0, students: [] };
         }
 
+        // Resolve status: prefer explicit status, fall back to is_present
+        const resolvedStatus = row.status || (row.is_present ? 'present' : 'absent');
+
         const studentInfo = {
-          name: `${row.students?.first_name} ${row.students?.last_name}`,
-          status: row.is_present ? 'Present' : 'Absent'
+          name: studentName({ first_name: row.students?.first_name, last_name: row.students?.last_name }),
+          rawFirst: row.students?.first_name || '',
+          rawLast: row.students?.last_name || '',
+          status: resolvedStatus
         };
 
         grouped[key].total += 1;
         grouped[key].gradeData[grade].total += 1;
         grouped[key].gradeData[grade].students.push(studentInfo);
-        
-        if (row.is_present) {
+
+        if (resolvedStatus === 'present' || resolvedStatus === 'permission') {
           grouped[key].present += 1;
           grouped[key].gradeData[grade].present += 1;
         }
@@ -103,20 +106,19 @@ export default function HistoryView() {
 
   const exportGradeCSV = (e, date, type, grade, studentList) => {
     e.stopPropagation();
-    const headers = ['First Name', 'Last Name', 'Grade', 'Status', 'Date', 'Type'];
+    const headers = ['Name', 'Christian Name', 'Grade', 'Status', 'Date', 'Type'];
     const csvContent = [
       headers.join(','),
-      ...studentList.map(s => {
-        const [first, ...last] = s.name.split(' ');
-        return `"${first}","${last.join(' ')}","${grade}","${s.status}","${date}","${type}"`;
-      })
+      ...studentList.map(s =>
+        `"${s.rawFirst}","${s.rawLast}","${grade}","${s.status}","${date}","${type}"`
+      )
     ].join('\n');
 
     const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Attendance_${grade.replace(' ', '_')}_${date}.csv`;
+    const url  = window.URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `Attendance_${grade.replace(/\s/g, '_')}_${date}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -227,15 +229,26 @@ export default function HistoryView() {
                                 {isGradeExpanded && (
                                   <div className="mx-2 sm:mx-6 mb-6 p-6 border rounded-3xl shadow-xl animate-fade-in" style={{ background: 'var(--bg-card)' }}>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1">
-                                      {gData.students.sort((a,b) => a.name.localeCompare(b.name)).map((s, idx) => (
-                                        <div key={idx} className="flex items-center justify-between py-2.5 px-4 hover:bg-gray-50 rounded-2xl transition-colors">
-                                          <span className="text-xs font-bold">{s.name}</span>
-                                          <span className={`flex items-center gap-2 text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg ${s.status === 'Present' ? 'text-success bg-success/5' : 'text-danger bg-danger/5'}`}>
-                                            {s.status === 'Present' ? <CheckCircle2 size={12} /> : <XCircle size={12} />}
-                                            {s.status}
-                                          </span>
-                                        </div>
-                                      ))}
+                                      {gData.students.sort((a,b) => a.name.localeCompare(b.name)).map((s, idx) => {
+                                        const isPresent    = s.status === 'present';
+                                        const isPermission = s.status === 'permission';
+                                        const isAbsent     = s.status === 'absent';
+                                        return (
+                                          <div key={idx} className="flex items-center justify-between py-2.5 px-4 hover:bg-gray-50 rounded-2xl transition-colors">
+                                            <span className="text-xs font-bold">{s.name}</span>
+                                            <span className={`flex items-center gap-2 text-[9px] font-black uppercase px-2.5 py-1.5 rounded-lg ${
+                                              isPresent    ? 'text-success bg-success/5' :
+                                              isPermission ? 'text-warning bg-warning/5' :
+                                                             'text-danger bg-danger/5'
+                                            }`}>
+                                              {isPresent    && <CheckCircle2 size={12} />}
+                                              {isPermission && <ShieldAlert size={12} />}
+                                              {isAbsent     && <XCircle size={12} />}
+                                              {isPresent ? 'Present' : isPermission ? 'Permission' : 'Absent'}
+                                            </span>
+                                          </div>
+                                        );
+                                      })}
                                     </div>
                                   </div>
                                 )}
