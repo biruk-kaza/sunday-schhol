@@ -8,8 +8,9 @@ import { format, isSaturday, isSunday, isMonday, isTuesday, isWednesday, isThurs
 import { saveOfflineAttendance, cacheStudents, getCachedStudents } from '../lib/offlineDb';
 import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass, studentName } from '../lib/classes';
 
-const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const WEEKDAYS    = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const WEEKEND_DAYS = ['Saturday', 'Sunday'];
+const ALL_DAYS     = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 function getTodayName() {
   const today = new Date();
@@ -106,11 +107,11 @@ export default function TodayView() {
     const handleSynced = () => loadSessionData();
     window.addEventListener('attendance-synced', handleSynced);
     return () => window.removeEventListener('attendance-synced', handleSynced);
-  }, [sessionDay, mode]);
+  }, [sessionDay, mode, selectedGrade]);
 
   useEffect(() => {
     loadSessionData();
-  }, [sessionDay, mode]);
+  }, [sessionDay, mode, selectedGrade]); // selectedGrade triggers re-fetch for Mezmur vs grade switch
 
   async function loadSessionData() {
     try {
@@ -120,7 +121,10 @@ export default function TodayView() {
 
       if (!navigator.onLine) {
         const cachedData = await getCachedStudents();
-        const filtered = cachedData.filter(s => (s.program_type || 'weekend') === programType);
+        // Mezmur classes: filter by grade; regular grades: filter by program_type
+        const filtered = isMezmurClass(selectedGrade)
+          ? cachedData.filter(s => s.grade === selectedGrade)
+          : cachedData.filter(s => (s.program_type || 'weekend') === programType);
         if (filtered.length > 0) {
           setStudents(filtered);
           setDraftLog({});
@@ -133,14 +137,19 @@ export default function TodayView() {
         return;
       }
 
-      // Fetch students filtered by program type
+      // Mezmur classes attend any day of the week — fetch by grade instead of program_type
       let studentQuery = supabase
         .from('students')
         .select('*')
         .eq('is_active', true)
         .eq('enrollment_status', 'Active')
-        .eq('program_type', programType)
         .order('first_name', { ascending: true });
+
+      if (isMezmurClass(selectedGrade)) {
+        studentQuery = studentQuery.eq('grade', selectedGrade);
+      } else {
+        studentQuery = studentQuery.eq('program_type', programType);
+      }
 
       const { data: studentsData, error: studentErr } = await studentQuery;
       if (studentErr) throw studentErr;
@@ -313,6 +322,9 @@ export default function TodayView() {
   const permissionCount = filteredStudents.filter(s => draftLog[s.id] === 'permission').length;
 
   const showBothModes = canSeeWeekend && canSeeWeekday;
+  const isMezmurMode  = isMezmurClass(selectedGrade);
+  // When a Mezmur class is selected, all 7 days are available
+  const daysToShow    = isMezmurMode ? ALL_DAYS : (mode === 'weekend' ? WEEKEND_DAYS : WEEKDAYS);
 
   return (
     <div className="page-container">
@@ -326,8 +338,17 @@ export default function TodayView() {
           )}
         </div>
 
-        {/* Mode Selector: Weekend / Weekday */}
-        {showBothModes && (
+        {/* Mode Selector: Weekend / Weekday — hidden for Mezmur (all 7 days) */}
+        {isMezmurMode ? (
+          <div className="mode-selector mb-3">
+            <button
+              className="mode-btn active"
+              style={{ cursor: 'default', background: 'linear-gradient(135deg,#a855f7,#6366f1)', color:'#fff', border:'none' }}
+            >
+              📅 All 7 Days
+            </button>
+          </div>
+        ) : showBothModes && (
           <div className="mode-selector mb-3">
             <button className={`mode-btn ${mode === 'weekend' ? 'active' : ''}`} onClick={() => setMode('weekend')}>
               {t('att.weekend')}
@@ -338,9 +359,9 @@ export default function TodayView() {
           </div>
         )}
 
-        {/* Day Picker */}
+        {/* Day Picker — 7 days for Mezmur, 2 or 5 for regular classes */}
         <div className="day-picker-scroll">
-          {(mode === 'weekend' ? WEEKEND_DAYS : WEEKDAYS).map(day => (
+          {daysToShow.map(day => (
             <button
               key={day}
               className={`day-chip ${sessionDay === day ? 'active' : ''} ${day === todayName ? 'today' : ''}`}
