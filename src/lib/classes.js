@@ -29,6 +29,7 @@ export const MEZMUR_CLASSES = [
   'ቅዱስባስልዮስ',
   'እዝራ',
   'ቅዱስ ያሬድ',
+  'የአቡነ ጎርጎሪዎስ',
 ];
 
 /** All classes combined (grades first, then Mezmur groups) */
