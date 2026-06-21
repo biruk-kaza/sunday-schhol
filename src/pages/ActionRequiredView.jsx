@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Phone, MessageSquare, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useLanguage } from '../context/LanguageContext';
+import { studentName } from '../lib/classes';
 
 export default function ActionRequiredView() {
   const { t } = useLanguage();
@@ -53,7 +54,7 @@ export default function ActionRequiredView() {
             <div key={student.id} className="card risk-card">
               <div className="risk-header flex justify-between items-center">
                 <div>
-                  <h3 className="student-name font-semibold m-0">{student.first_name} {student.last_name}</h3>
+                  <h3 className="student-name font-semibold m-0">{studentName(student)}</h3>
                   <p className="text-danger font-semibold m-0 text-sm mt-1">Risk Score: {student.risk_score}</p>
                   <p className="text-muted text-sm m-0">Grade: {student.grade}</p>
                 </div>

@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isSaturday, isSunday, nextSaturday, nextSunday, addDays } from 'date-fns';
-import { GRADE_CLASSES } from '../lib/classes';
+import { GRADE_CLASSES, studentName } from '../lib/classes';
 
 export default function DashboardView() {
   const navigate = useNavigate();
@@ -240,7 +240,7 @@ export default function DashboardView() {
                     {atRisk.map(s => (
                       <div key={s.id} className="risk-item group" onClick={() => navigate('/action')} style={{ cursor: 'pointer' }}>
                         <div>
-                          <p className="font-bold m-0 text-sm" style={{ marginBottom: '2px' }}>{s.first_name} {s.last_name}</p>
+                          <p className="font-bold m-0 text-sm" style={{ marginBottom: '2px' }}>{studentName(s)}</p>
                           <p className="text-xs text-muted m-0">{s.grade}</p>
                         </div>
                         <span className="text-[10px] font-black bg-danger/10 text-danger px-2 py-0.5 rounded-md">{s.risk_score}</span>

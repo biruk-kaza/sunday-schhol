@@ -49,3 +49,15 @@ export function isMezmurClass(className) {
 export function isGradeClass(className) {
   return GRADE_CLASSES.includes(className);
 }
+
+/**
+ * Formats a student's full display name.
+ * If the student has a Christian name (last_name), it appears in brackets.
+ * e.g.  "ሃና ካሰው (ወለተሃና)"  or just  "ሽታዬ ግፋው"  when no Christian name.
+ */
+export function studentName(student) {
+  const given = student?.first_name || '';
+  const christian = student?.last_name || '';
+  if (!christian) return given;
+  return `${given} (${christian})`;
+}

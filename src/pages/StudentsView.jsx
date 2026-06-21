@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
 import Papa from 'papaparse';
-import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass } from '../lib/classes';
+import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass, studentName } from '../lib/classes';
 
 export default function StudentsView() {
   const { confirm, alert: showAlert } = useDialog();
@@ -556,7 +556,7 @@ export default function StudentsView() {
                         />
                       </td>
                       <td style={{ paddingLeft: '1rem' }}>
-                        <p className="font-black m-0">{s.first_name} {s.last_name}</p>
+                        <p className="font-black m-0">{studentName(s)}</p>
                       </td>
                       <td>
                         <span className="text-xs font-bold text-muted bg-gray-50 px-2 py-1 rounded-md uppercase">{s.grade}</span>

@@ -6,7 +6,7 @@ import { useDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
 import { format, isSaturday, isSunday, isMonday, isTuesday, isWednesday, isThursday, isFriday, previousSaturday, previousSunday, nextSunday, previousMonday, previousFriday, startOfWeek, addDays } from 'date-fns';
 import { saveOfflineAttendance, cacheStudents, getCachedStudents } from '../lib/offlineDb';
-import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass } from '../lib/classes';
+import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass, studentName } from '../lib/classes';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const WEEKEND_DAYS = ['Saturday', 'Sunday'];
@@ -423,7 +423,7 @@ export default function TodayView() {
                   style={{ animationDelay: `${index * 25}ms` }}
                 >
                   <div>
-                    <p className="font-bold m-0" style={{ fontSize: '1.05rem' }}>{student.first_name} {student.last_name}</p>
+                    <p className="font-bold m-0" style={{ fontSize: '1.05rem' }}>{studentName(student)}</p>
                     <p className="text-muted m-0 text-xs mt-1 font-semibold uppercase tracking-wider">{student.grade}</p>
                   </div>
                   <div className="attendance-actions">
