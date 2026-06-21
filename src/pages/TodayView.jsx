@@ -152,7 +152,10 @@ export default function TodayView() {
             ? isMezmurClass(s.grade)
             : s.grade === selectedGrade);
         } else {
-          filtered = cached.filter(s => (s.program_type || 'weekend') === programType);
+          // Regular mode: must match program type AND be a standard academic grade
+          filtered = cached.filter(s => 
+            (s.program_type || 'weekend') === programType && GRADE_CLASSES.includes(s.grade)
+          );
         }
         if (filtered.length > 0) {
           setStudents(filtered);
@@ -182,8 +185,9 @@ export default function TodayView() {
           q = q.in('grade', MEZMUR_CLASSES);
         }
       } else {
-        // Regular grade mode
-        q = q.eq('program_type', programType);
+        // Regular grade mode: filter by program_type AND restrict to academic grades only
+        // (Mezmur students share program_type='weekend' so we must exclude them explicitly)
+        q = q.eq('program_type', programType).in('grade', GRADE_CLASSES);
       }
 
       const { data: studentsData, error: studentErr } = await q;
@@ -229,8 +233,8 @@ export default function TodayView() {
       try {
         const cached = await getCachedStudents();
         const filtered = mode === 'mezmur'
-          ? cached.filter(s => s.grade === selectedGrade)
-          : cached.filter(s => (s.program_type || 'weekend') === programType);
+          ? cached.filter(s => selectedGrade === 'All Mezmur' ? isMezmurClass(s.grade) : s.grade === selectedGrade)
+          : cached.filter(s => (s.program_type || 'weekend') === programType && GRADE_CLASSES.includes(s.grade));
         if (filtered.length > 0) {
           setStudents(filtered);
           setDraftLog({});
