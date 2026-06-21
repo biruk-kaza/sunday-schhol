@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
+import { isMezmurClass } from '../lib/classes';
 
 export default function SettingsView() {
   const [loading, setLoading] = useState(false);
@@ -66,24 +67,26 @@ export default function SettingsView() {
 
       if (fetchError) throw fetchError;
 
-      const updates = students.map(s => {
-        let nextGrade = '';
-        let isActive = true;
-        let status = 'Active';
+      const updates = students
+        .filter(s => !isMezmurClass(s.grade)) // Mezmur choir students don't get promoted
+        .map(s => {
+          let nextGrade = s.grade; // default: keep same
+          let isActive = true;
+          let status = 'Active';
 
-        if (s.grade === 'Grade 7') nextGrade = 'Grade 8';
-        else if (s.grade === 'Grade 8') nextGrade = 'Grade 9';
-        else if (s.grade === 'Grade 9') nextGrade = 'Grade 10';
-        else if (s.grade === 'Grade 10') nextGrade = 'Grade 11';
-        else if (s.grade === 'Grade 11') nextGrade = 'Grade 12';
-        else if (s.grade === 'Grade 12') {
-          nextGrade = 'Grade 12';
-          isActive = false;
-          status = 'Graduated';
-        }
+          if (s.grade === 'Grade 7') nextGrade = 'Grade 8';
+          else if (s.grade === 'Grade 8') nextGrade = 'Grade 9';
+          else if (s.grade === 'Grade 9') nextGrade = 'Grade 10';
+          else if (s.grade === 'Grade 10') nextGrade = 'Grade 11';
+          else if (s.grade === 'Grade 11') nextGrade = 'Grade 12';
+          else if (s.grade === 'Grade 12') {
+            nextGrade = 'Grade 12';
+            isActive = false;
+            status = 'Graduated';
+          }
 
-        return { ...s, grade: nextGrade, is_active: isActive, enrollment_status: status };
-      });
+          return { ...s, grade: nextGrade, is_active: isActive, enrollment_status: status };
+        });
 
       const { error: updateError } = await supabase
         .from('students')

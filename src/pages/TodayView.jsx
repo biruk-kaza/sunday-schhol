@@ -6,6 +6,7 @@ import { useDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
 import { format, isSaturday, isSunday, isMonday, isTuesday, isWednesday, isThursday, isFriday, previousSaturday, previousSunday, nextSunday, previousMonday, previousFriday, startOfWeek, addDays } from 'date-fns';
 import { saveOfflineAttendance, cacheStudents, getCachedStudents } from '../lib/offlineDb';
+import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass } from '../lib/classes';
 
 const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 const WEEKEND_DAYS = ['Saturday', 'Sunday'];
@@ -369,8 +370,12 @@ export default function TodayView() {
           {isAdmin ? (
             <select className="form-input" style={{ width: 'auto' }} value={selectedGrade} onChange={(e) => setSelectedGrade(e.target.value)}>
               <option value="All">{t('att.allGrades')}</option>
-              <option value="Grade 7">Grade 7</option><option value="Grade 8">Grade 8</option><option value="Grade 9">Grade 9</option>
-              <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
+              <optgroup label="── Grades ──">
+                {GRADE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </optgroup>
+              <optgroup label="── Mezmur Groups ──">
+                {ALL_CLASSES.filter(isMezmurClass).map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </optgroup>
             </select>
           ) : (
             <div className="bg-primary/5 px-4 py-2 rounded-xl border border-primary/10">

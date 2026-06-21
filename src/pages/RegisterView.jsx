@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass } from '../lib/classes';
 
 export default function RegisterView() {
   const [formData, setFormData] = useState({ first_name: '', last_name: '', grade: 'Grade 7', parent_phone: '', program_type: 'weekend' });
@@ -69,12 +70,12 @@ export default function RegisterView() {
           <div>
             <label className="text-sm font-semibold mb-1 block">Grade / Class</label>
             <select className="form-input" value={formData.grade} onChange={e => setFormData({...formData, grade: e.target.value})}>
-              <option value="Grade 7">Grade 7</option>
-              <option value="Grade 8">Grade 8</option>
-              <option value="Grade 9">Grade 9</option>
-              <option value="Grade 10">Grade 10</option>
-              <option value="Grade 11">Grade 11</option>
-              <option value="Grade 12">Grade 12</option>
+              <optgroup label="── Grades ──">
+                {GRADE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </optgroup>
+              <optgroup label="── Mezmur Groups ──">
+                {ALL_CLASSES.filter(isMezmurClass).map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </optgroup>
             </select>
           </div>
           <div>

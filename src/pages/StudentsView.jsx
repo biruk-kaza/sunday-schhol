@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useDialog } from '../context/DialogContext';
 import { useLanguage } from '../context/LanguageContext';
 import Papa from 'papaparse';
+import { ALL_CLASSES, GRADE_CLASSES, isMezmurClass } from '../lib/classes';
 
 export default function StudentsView() {
   const { confirm, alert: showAlert } = useDialog();
@@ -139,57 +140,120 @@ export default function StudentsView() {
     }
   }
 
+  /**
+   * Fixes a phone number that Excel may have saved in scientific notation.
+   * e.g. "9.83E+08" → "0983000000" (approx) — we recover the actual digits.
+   * More precisely, we convert the float back to a full integer string.
+   */
+  const fixPhone = (raw) => {
+    if (!raw) return '';
+    const str = String(raw).trim();
+    // Detect scientific notation like 9.83E+08, 9.49E+08 etc.
+    if (/^[\d.]+[eE][+\-]?\d+$/.test(str)) {
+      const num = parseFloat(str);
+      if (!isNaN(num)) {
+        // Convert to integer string and prepend 0 if it's a local Ethiopian number
+        const intStr = Math.round(num).toString();
+        // Ethiopian local numbers: 9xx xxx xxx → add leading 0 to get 09xx...
+        return intStr.length === 9 ? '0' + intStr : intStr;
+      }
+    }
+    return str;
+  };
+
+  /**
+   * Cleans a multiline cell value — removes embedded newlines (Excel merged-cell artifact)
+   * and extracts just the first meaningful line (the actual name).
+   */
+  const cleanCell = (raw) => {
+    if (!raw) return '';
+    return String(raw).split('\n')[0].trim();
+  };
+
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
     setIsUploading(true);
     Papa.parse(file, {
-      header: false, // assuming raw rows to support mixed CSVs
-      skipEmptyLines: true,
+      header: false,
+      skipEmptyLines: false, // keep blank lines so multiline cells parse correctly
       complete: async (results) => {
         try {
           const rows = results.data;
-          
-          // Smart Header Skip: if first row looks like a header, skip it
-          let startIndex = 0;
-          if (rows.length > 0) {
-            const firstRowStr = rows[0].join(' ').toLowerCase();
-            if (firstRowStr.includes('name') || firstRowStr.includes('first') || firstRowStr.includes('grade')) {
-              startIndex = 1;
+
+          // ── Column layout of Attendance_Import_Ready.csv ──────────────────
+          // Col 0: Family         (group name  → used as `grade` field)
+          // Col 1: Representative (family rep  → stored as note/ignored)
+          // Col 2: No             (member seq# → ignored)
+          // Col 3: Name           (full name   → first_name)
+          // Col 4: Christian Name (bapt. name  → last_name)
+          // Col 5: Phone          (may be sci-notation from Excel → parent_phone)
+          // Col 6: Is Representative
+
+          // Skip the header row
+          const dataRows = rows.filter((row, idx) => {
+            if (idx === 0) return false; // skip header
+            // Skip rows that are entirely blank
+            if (row.every(cell => !cell || String(cell).trim() === '')) return false;
+            // Must have at least 4 columns and a non-empty Name (col 3)
+            if (row.length < 4) return false;
+            const name = cleanCell(row[3]);
+            if (!name) return false;
+            return true;
+          });
+
+          const newRecords = dataRows.map(row => {
+            const familyRaw = cleanCell(row[0]);  // Family name (col 0)
+
+            // ── Detect & fix shifted/corrupted rows ─────────────────────────
+            // In some rows col[2] (seq No) was duplicated into col[3] (Name),
+            // pushing the real Name → col[4] and ChristianName → col[5].
+            // Detection: col[2] === col[3] and col[2] looks like a number.
+            const col2val = cleanCell(row[2]);
+            const col3val = cleanCell(row[3]);
+            const isShifted = col2val && col3val && col2val === col3val && /^\d+$/.test(col2val);
+
+            let nameRaw, christianRaw, phoneRaw;
+            if (isShifted) {
+              // Shifted: real data is one column to the right
+              nameRaw      = cleanCell(row[4]);  // actual Name
+              christianRaw = cleanCell(row[5]);  // actual Christian Name
+              phoneRaw     = cleanCell(row[6]);  // actual Phone (may be "No" if missing)
+            } else {
+              nameRaw      = cleanCell(row[3]);  // Name (first_name)
+              christianRaw = cleanCell(row[4]);  // Christian Name (last_name)
+              phoneRaw     = cleanCell(row[5]);  // Phone
             }
-          }
 
-          const newRecords = rows.slice(startIndex)
-            .filter(row => row.length >= 1 && row[0]?.trim() !== '') // Must have a first name
-            .map(row => {
-              const firstName = row[0]?.trim() || 'Unknown';
-              const lastName = row[1]?.trim() || '';
-              const rawGrade = row[2]?.trim() || 'Grade 7';
-              const phone = row[3]?.trim() || 'N/A';
-              
-              // Use the globally selected import target grade, or read from CSV if Auto
-              let finalGrade = importTargetGrade;
-              if (importTargetGrade === 'Auto') {
-                const validGrades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-                finalGrade = validGrades.includes(rawGrade) ? rawGrade : 'Grade 7';
-              }
+            // If phone looks like "Yes"/"No" (Is Representative field), clear it
+            if (phoneRaw === 'Yes' || phoneRaw === 'No') phoneRaw = '';
 
-              return {
-                first_name: firstName,
-                last_name: lastName,
-                grade: finalGrade,
-                parent_phone: phone,
-                enrollment_status: 'Active',
-                is_active: true
-              };
-            });
+            // Determine grade grouping
+            let finalGrade = importTargetGrade;
+            if (importTargetGrade === 'Auto') {
+              // Use the family name as the class group (it becomes the "grade" value)
+              // If it happens to match a known grade exactly, use it; otherwise keep the family name
+              finalGrade = familyRaw || 'Grade 7';
+            }
+
+            const phone = fixPhone(phoneRaw) || 'N/A';
+
+            return {
+              first_name: nameRaw || 'Unknown',
+              last_name: christianRaw || '',
+              grade: finalGrade,
+              parent_phone: phone,
+              program_type: 'weekend',
+              enrollment_status: 'Active',
+              is_active: true
+            };
+          }).filter(r => r.first_name && r.first_name !== 'Unknown');
 
           if (newRecords.length === 0) throw new Error("No valid student data found in the CSV file.");
 
-          // --- ROBUST BATCH CHUNKING ---
-          // Supabase limits payload size. Slicing into 200-record chunks ensures stability.
-          const chunkSize = 200; 
+          // ── Batch insert (chunked for Supabase payload limits) ────────────
+          const chunkSize = 200;
           let successfulInserts = 0;
           let failedChunks = 0;
 
@@ -197,7 +261,7 @@ export default function StudentsView() {
             const chunk = newRecords.slice(i, i + chunkSize);
             const { error } = await supabase.from('students').insert(chunk);
             if (error) {
-              console.error(`Error inserting chunk ${i/chunkSize}:`, error);
+              console.error(`Error inserting chunk ${Math.floor(i/chunkSize)}:`, error);
               failedChunks++;
             } else {
               successfulInserts += chunk.length;
@@ -205,18 +269,18 @@ export default function StudentsView() {
           }
 
           if (failedChunks > 0 && successfulInserts === 0) {
-             throw new Error("All records failed to import. Please check if columns match or unique constraints are violated.");
+            throw new Error("All records failed to import. Check console — possible unique constraint or missing required field.");
           }
 
-          const message = failedChunks > 0 
-            ? `Import partially successful. Added ${successfulInserts} students, but some chunks failed. Check the console for details.`
-            : `Successfully imported ${successfulInserts} students into the directory.`;
+          const message = failedChunks > 0
+            ? `Import partially successful. Added ${successfulInserts} students; ${failedChunks} chunk(s) failed — see console for details.`
+            : `Successfully imported ${successfulInserts} students from the family attendance list.`;
 
-          await showAlert(message, { 
-            title: failedChunks > 0 ? 'Completed With Errors' : 'Import Complete', 
-            variant: failedChunks > 0 ? 'warning' : 'success' 
+          await showAlert(message, {
+            title: failedChunks > 0 ? 'Completed With Errors' : 'Import Complete',
+            variant: failedChunks > 0 ? 'warning' : 'success'
           });
-          
+
           fetchStudents();
         } catch (err) {
           showAlert('Bulk Import failed: ' + err.message, { title: 'Import Error', variant: 'danger' });
@@ -340,12 +404,9 @@ export default function StudentsView() {
                 onChange={e => setImportTargetGrade(e.target.value)}
               >
                 <option value="Auto">Read from CSV (Auto)</option>
-                <option value="Grade 7">Import as Grade 7</option>
-                <option value="Grade 8">Import as Grade 8</option>
-                <option value="Grade 9">Import as Grade 9</option>
-                <option value="Grade 10">Import as Grade 10</option>
-                <option value="Grade 11">Import as Grade 11</option>
-                <option value="Grade 12">Import as Grade 12</option>
+                {ALL_CLASSES.map(cls => (
+                  <option key={cls} value={cls}>Import as {cls}</option>
+                ))}
               </select>
               <button className="btn-primary w-full" disabled={isUploading} onClick={() => fileInputRef.current.click()}>
                 {isUploading ? 'Importing...' : 'Upload CSV'}
@@ -380,13 +441,13 @@ export default function StudentsView() {
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-muted" />
             <select className="form-input" style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.8rem', fontWeight: 700 }} value={gradeFilter} onChange={e => setGradeFilter(e.target.value)}>
-              <option value="All">All Grades</option>
-              <option value="Grade 7">Grade 7</option>
-              <option value="Grade 8">Grade 8</option>
-              <option value="Grade 9">Grade 9</option>
-              <option value="Grade 10">Grade 10</option>
-              <option value="Grade 11">Grade 11</option>
-              <option value="Grade 12">Grade 12</option>
+              <option value="All">All Classes</option>
+              <optgroup label="── Grades ──">
+                {GRADE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </optgroup>
+              <optgroup label="── Mezmur Groups ──">
+                {ALL_CLASSES.filter(isMezmurClass).map(cls => <option key={cls} value={cls}>{cls}</option>)}
+              </optgroup>
             </select>
             <select className="form-input" style={{ width: 'auto', padding: '0.6rem 1rem', fontSize: '0.8rem', fontWeight: 700 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
               <option value="All">All Statuses</option>
@@ -428,12 +489,12 @@ export default function StudentsView() {
                   
                   {batchActionType === 'grade' && (
                     <select className="form-input py-1.5 text-sm w-auto" value={batchActionValue} onChange={e => setBatchActionValue(e.target.value)}>
-                      <option value="Grade 7">Grade 7</option>
-                      <option value="Grade 8">Grade 8</option>
-                      <option value="Grade 9">Grade 9</option>
-                      <option value="Grade 10">Grade 10</option>
-                      <option value="Grade 11">Grade 11</option>
-                      <option value="Grade 12">Grade 12</option>
+                      <optgroup label="── Grades ──">
+                        {GRADE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                      </optgroup>
+                      <optgroup label="── Mezmur Groups ──">
+                        {ALL_CLASSES.filter(isMezmurClass).map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                      </optgroup>
                     </select>
                   )}
                   {batchActionType === 'program_type' && (
@@ -549,8 +610,12 @@ export default function StudentsView() {
                 <input required type="text" placeholder="Last Name" className="form-input flex-1" value={newStudent.last_name} onChange={e => setNewStudent({...newStudent, last_name: e.target.value})} />
               </div>
               <select className="form-input" value={newStudent.grade} onChange={e => setNewStudent({...newStudent, grade: e.target.value})}>
-                <option value="Grade 7">Grade 7</option><option value="Grade 8">Grade 8</option><option value="Grade 9">Grade 9</option>
-                <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
+                <optgroup label="── Grades ──">
+                  {GRADE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                </optgroup>
+                <optgroup label="── Mezmur Groups ──">
+                  {ALL_CLASSES.filter(isMezmurClass).map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                </optgroup>
               </select>
               <input required type="tel" placeholder="Parent Phone Number" className="form-input" value={newStudent.parent_phone} onChange={e => setNewStudent({...newStudent, parent_phone: e.target.value})} />
               <select className="form-input" value={newStudent.program_type} onChange={e => setNewStudent({...newStudent, program_type: e.target.value})}>
@@ -577,8 +642,12 @@ export default function StudentsView() {
                 <input required type="text" placeholder="Last Name" className="form-input flex-1" value={editingStudent.last_name} onChange={e => setEditingStudent({...editingStudent, last_name: e.target.value})} />
               </div>
               <select className="form-input" value={editingStudent.grade} onChange={e => setEditingStudent({...editingStudent, grade: e.target.value})}>
-                <option value="Grade 7">Grade 7</option><option value="Grade 8">Grade 8</option><option value="Grade 9">Grade 9</option>
-                <option value="Grade 10">Grade 10</option><option value="Grade 11">Grade 11</option><option value="Grade 12">Grade 12</option>
+                <optgroup label="── Grades ──">
+                  {GRADE_CLASSES.map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                </optgroup>
+                <optgroup label="── Mezmur Groups ──">
+                  {ALL_CLASSES.filter(isMezmurClass).map(cls => <option key={cls} value={cls}>{cls}</option>)}
+                </optgroup>
               </select>
               <input required type="tel" placeholder="Parent Phone Number" className="form-input" value={editingStudent.parent_phone} onChange={e => setEditingStudent({...editingStudent, parent_phone: e.target.value})} />
               <select className="form-input" value={editingStudent.program_type || 'weekend'} onChange={e => setEditingStudent({...editingStudent, program_type: e.target.value})}>

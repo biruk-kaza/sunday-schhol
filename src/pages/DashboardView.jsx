@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isSaturday, isSunday, nextSaturday, nextSunday, addDays } from 'date-fns';
+import { GRADE_CLASSES } from '../lib/classes';
 
 export default function DashboardView() {
   const navigate = useNavigate();
@@ -101,11 +102,10 @@ export default function DashboardView() {
       const presentRecords = validRecords.filter(r => r.status === 'present' || (!r.status && r.is_present)).length;
       const uniqueSessions = new Set(validRecords.map(r => `${r.session_date}_${r.session_type}`)).size;
 
-      // Process Grade Stats (Admin Only)
+      // Process Grade Stats (Admin Only — Grade classes only, not Mezmur)
       let gStats = [];
       if (isAdmin) {
-        const grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
-        gStats = grades.map(g => {
+        gStats = GRADE_CLASSES.map(g => {
           const gRecords = attData?.filter(r => r.students?.grade === g) || [];
           const gPresent = gRecords.filter(r => r.status === 'present' || (!r.status && r.is_present)).length;
           const pct = gRecords.length > 0 ? Math.round((gPresent / gRecords.length) * 100) : 0;
